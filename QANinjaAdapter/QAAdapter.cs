@@ -1,4 +1,4 @@
-﻿using QAAdapterAddOn.ViewModels;
+using QAAdapterAddOn.ViewModels;
 using QABrokerAPI.Common.Enums;
 using QABrokerAPI.Zerodha.Websockets;
 using QANinjaAdapter.Classes;
@@ -42,6 +42,7 @@ namespace QANinjaAdapter
 
         public void Connect(IConnection connection)
         {
+            Logger.Info("QAAdapter: Initializing and connecting adapter...");
             this._ninjaConnection = connection;
             this._options = (QAConnectorOptions)this._ninjaConnection.Options;
             
@@ -93,6 +94,7 @@ namespace QANinjaAdapter
             {
                 if (Connector.Instance.CheckConnection())
                 {
+                    Logger.Info("QAAdapter: Connection to provider (Zerodha) successful.");
                     this.SetInstruments();
                     this._ninjaConnection.ConnectionStatusCallback(ConnectionStatus.Connected, ConnectionStatus.Connected, ErrorCode.NoError, "");
 

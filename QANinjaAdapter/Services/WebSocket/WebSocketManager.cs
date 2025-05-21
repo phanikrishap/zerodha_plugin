@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using QANinjaAdapter.Models;
 using QANinjaAdapter.Models.MarketData;
 using QANinjaAdapter.Services.Zerodha;
+using QANinjaAdapter;
 
 namespace QANinjaAdapter.Services.WebSocket
 {
@@ -83,7 +84,7 @@ namespace QANinjaAdapter.Services.WebSocket
             string modeMsg = $@"{{""a"":""mode"",""v"":[""{ mode }"",[{instrumentToken}]]}}";
             await SendTextMessageAsync(ws, modeMsg);
 
-            NinjaTrader.NinjaScript.NinjaScript.Log($"[WEBSOCKET] Subscribed to token {instrumentToken} in {mode} mode", NinjaTrader.Cbi.LogLevel.Information);
+            Logger.Info($"WebSocketManager: Subscribed to token {instrumentToken} in {mode} mode.");
         }
 
         /// <summary>

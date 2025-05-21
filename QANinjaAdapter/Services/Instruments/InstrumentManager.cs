@@ -58,14 +58,15 @@ namespace QANinjaAdapter.Services.Instruments
         {
             if (_isInitialized) return;
             
+            string jsonFilePath = string.Empty;
             try 
             {
                 string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-                string jsonFilePath = Path.Combine(documentsPath, DB_FILE_PATH);
+                jsonFilePath = Path.Combine(documentsPath, DB_FILE_PATH);
 
                 if (!File.Exists(jsonFilePath))
                 {
-                    NinjaTrader.NinjaScript.NinjaScript.Log($"Instrument mapping file not found at: {jsonFilePath}", NinjaTrader.Cbi.LogLevel.Error);
+                    Logger.Info($"InstrumentManager: Instrument mapping file not found at: {jsonFilePath}");
                     return;
                 }
 
@@ -90,12 +91,13 @@ namespace QANinjaAdapter.Services.Instruments
                     }
                     
                     _isInitialized = true;
-                    NinjaTrader.NinjaScript.NinjaScript.Log($"Loaded {_symbolToTokenMap.Count} instrument mappings from {jsonFilePath}", NinjaTrader.Cbi.LogLevel.Information);
+                    Logger.Info($"InstrumentManager: Loaded {_symbolToTokenMap.Count} instrument mappings from {jsonFilePath}");
                 }
             }
             catch (Exception ex)
             {
-                NinjaTrader.NinjaScript.NinjaScript.Log($"Error loading instrument mappings: {ex.Message}", NinjaTrader.Cbi.LogLevel.Error);
+                string pathForError = string.IsNullOrEmpty(jsonFilePath) ? "[unknown path]" : jsonFilePath;
+                Logger.Error($"InstrumentManager: Error loading instrument mappings from {pathForError}. Error: {ex.Message}", ex);
                 throw;
             }
         }
@@ -141,7 +143,7 @@ namespace QANinjaAdapter.Services.Instruments
             }
             catch (Exception ex)
             {
-                NinjaTrader.NinjaScript.NinjaScript.Log($"Error getting instrument token: {ex.Message}", NinjaTrader.Cbi.LogLevel.Error);
+                Logger.Error($"InstrumentManager: Error getting instrument token for symbol '{symbol}'. Error: {ex.Message}", ex);
                 return 0;
             }
         }
@@ -158,7 +160,7 @@ namespace QANinjaAdapter.Services.Instruments
                 if (_instrumentTokenCache.Count > 0)
                     return;
 
-                NinjaTrader.NinjaScript.NinjaScript.Log("Loading instrument tokens from Zerodha...", NinjaTrader.Cbi.LogLevel.Information);
+                Logger.Info("InstrumentManager: Attempting to load instrument tokens from Zerodha API...");
 
                 using (HttpClient client = _zerodhaClient.CreateAuthorizedClient())
                 {
@@ -176,7 +178,7 @@ namespace QANinjaAdapter.Services.Instruments
 
                         if (lines.Length <= 1)
                         {
-                            NinjaTrader.NinjaScript.NinjaScript.Log("No instruments found in CSV", NinjaTrader.Cbi.LogLevel.Warning);
+                            Logger.Warn("InstrumentManager: No instruments found in CSV from Zerodha API.");
                             return;
                         }
 
@@ -188,7 +190,7 @@ namespace QANinjaAdapter.Services.Instruments
 
                         if (tradingSymbolIndex < 0 || instrumentTokenIndex < 0 || exchangeIndex < 0)
                         {
-                            NinjaTrader.NinjaScript.NinjaScript.Log("Required columns not found in CSV", NinjaTrader.Cbi.LogLevel.Error);
+                            Logger.Error("InstrumentManager: Required columns (tradingsymbol, instrument_token, exchange) not found in CSV from Zerodha API.");
                             return;
                         }
 
@@ -221,18 +223,18 @@ namespace QANinjaAdapter.Services.Instruments
                             }
                         }
 
-                        NinjaTrader.NinjaScript.NinjaScript.Log($"Loaded {_instrumentTokenCache.Count} instrument tokens", NinjaTrader.Cbi.LogLevel.Information);
+                        Logger.Info($"InstrumentManager: Loaded {_instrumentTokenCache.Count} instrument tokens");
                     }
                     else
                     {
                         string errorContent = await response.Content.ReadAsStringAsync();
-                        NinjaTrader.NinjaScript.NinjaScript.Log($"Error loading instruments: {response.StatusCode}, {errorContent}", NinjaTrader.Cbi.LogLevel.Error);
+                        Logger.Error($"InstrumentManager: Error loading instruments from Zerodha API. Status code: {response.StatusCode}, Error: {errorContent}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                NinjaTrader.NinjaScript.NinjaScript.Log($"Error loading instrument tokens: {ex.Message}", NinjaTrader.Cbi.LogLevel.Error);
+                Logger.Error($"InstrumentManager: Error loading instrument tokens from Zerodha API. Error: {ex.Message}", ex);
             }
         }
 
@@ -252,11 +254,10 @@ namespace QANinjaAdapter.Services.Instruments
                     string jsonFilePath = Path.Combine(documentsPath, Path.ChangeExtension(DB_FILE_PATH, ".json"));
 
                     Logger.Info($"Reading symbols from JSON file: {jsonFilePath}");
-                    NinjaTrader.NinjaScript.NinjaScript.Log($"Reading symbols from JSON file", NinjaTrader.Cbi.LogLevel.Information);
 
                     if (!File.Exists(jsonFilePath))
                     {
-                        NinjaTrader.NinjaScript.NinjaScript.Log($"Error: JSON file does not exist", NinjaTrader.Cbi.LogLevel.Error);
+                        Logger.Error($"Error: JSON file does not exist at {jsonFilePath}");
                         MessageBox.Show($"Symbol JSON file not found at: {jsonFilePath}",
                                 "File Error", MessageBoxButton.OK, MessageBoxImage.Error);
                         return exchangeInformation;
@@ -268,7 +269,7 @@ namespace QANinjaAdapter.Services.Instruments
                     // Deserialize JSON to list of mapped instruments
                     var mappedInstruments = JsonConvert.DeserializeObject<List<MappedInstrument>>(jsonContent);
 
-                    NinjaTrader.NinjaScript.NinjaScript.Log($"Successfully read JSON file", NinjaTrader.Cbi.LogLevel.Information);
+                    Logger.Info($"Successfully read JSON file");
 
                     int count = 0;
 
@@ -316,7 +317,7 @@ namespace QANinjaAdapter.Services.Instruments
                                 Filters = filters.ToArray()
                             };
 
-                            // Set market type based on segment/exchange
+                            // Set market type based on segment
                             switch (segment.ToUpper())
                             {
                                 case "NSE":
@@ -362,8 +363,6 @@ namespace QANinjaAdapter.Services.Instruments
                 catch (Exception ex)
                 {
                     Logger.Error($"Exception in GetExchangeInformation: {ex.Message}");
-                    NinjaTrader.NinjaScript.NinjaScript.Log(ex.Message, NinjaTrader.Cbi.LogLevel.Error);
-                    NinjaTrader.NinjaScript.NinjaScript.Log($"{ex.Message} + {ex.Source} + {ex.StackTrace}", NinjaTrader.Cbi.LogLevel.Error);
                     MessageBox.Show($"Error loading symbols from JSON file: {ex.Message}",
                         "File Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
@@ -391,16 +390,16 @@ namespace QANinjaAdapter.Services.Instruments
                     if (success)
                     {
                         createdCount++;
-                        NinjaTrader.NinjaScript.NinjaScript.Log($"✅ Created NT Instrument: {ntName}", NinjaTrader.Cbi.LogLevel.Information);
+                        Logger.Info($"✅ Created NT Instrument: {ntName}");
                     }
                 }
                 catch (Exception e)
                 {
-                    NinjaTrader.NinjaScript.NinjaScript.Log($"❌ Exception Occurred: {e.Message}", NinjaTrader.Cbi.LogLevel.Information);
+                    Logger.Error($"❌ Exception Occurred: {e.Message}");
                 }
             }
 
-            NinjaTrader.NinjaScript.NinjaScript.Log($"✅ Total symbols created: {createdCount}", NinjaTrader.Cbi.LogLevel.Information);
+            Logger.Info($"✅ Total symbols created: {createdCount}");
         }
 
         /// <summary>
@@ -479,7 +478,7 @@ namespace QANinjaAdapter.Services.Instruments
 
             // We'll use the default trading hours for now
             // In a real implementation, we would need to set up proper trading hours
-            NinjaTrader.NinjaScript.NinjaScript.Log("Using default trading hours", NinjaTrader.Cbi.LogLevel.Information);
+            Logger.Info("Using default trading hours");
 
             MasterInstrument masterInstrument1 = MasterInstrument.DbGet(validName, instrumentType) ?? MasterInstrument.DbGet(validName, instrumentType);
             string symbol = instrument.Symbol;
@@ -516,12 +515,12 @@ namespace QANinjaAdapter.Services.Instruments
                             }
                         }
                     } catch (Exception ex) {
-                        NinjaTrader.NinjaScript.NinjaScript.Log($"Error getting trading hours: {ex.Message}", NinjaTrader.Cbi.LogLevel.Error);
+                        Logger.Error($"Error getting trading hours: {ex.Message}");
                     }
                     
                     if (tradingHoursObj != null)
                     {
-                        NinjaTrader.NinjaScript.NinjaScript.Log($"Setting trading hours template: {tradingHoursName}", NinjaTrader.Cbi.LogLevel.Information);
+                        Logger.Info($"Setting trading hours template: {tradingHoursName}");
                         
                         // Use reflection to set the TradingHours property to avoid type conversion issues
                         var tradingHoursProperty = typeof(MasterInstrument).GetProperty("TradingHours");
@@ -532,7 +531,7 @@ namespace QANinjaAdapter.Services.Instruments
                     }
                     else
                     {
-                        NinjaTrader.NinjaScript.NinjaScript.Log("No trading hours template found. Please create a trading hours template in NinjaTrader.", NinjaTrader.Cbi.LogLevel.Error);
+                        Logger.Error("No trading hours template found. Please create a trading hours template in NinjaTrader.");
                         return false;
                     }
                 }
@@ -557,10 +556,10 @@ namespace QANinjaAdapter.Services.Instruments
 
             // We don't set trading hours directly
             // This is similar to the original plugin's approach
-            NinjaTrader.NinjaScript.NinjaScript.Log("Using default trading hours", NinjaTrader.Cbi.LogLevel.Information);
+            Logger.Info("Using default trading hours");
             
             // Set up trading hours - this is crucial to prevent the TradingHours == null error
-            NinjaTrader.NinjaScript.NinjaScript.Log("Setting up trading hours", NinjaTrader.Cbi.LogLevel.Information);
+            Logger.Info("Setting up trading hours");
             
             // Create the MasterInstrument without setting TradingHours in the constructor
             MasterInstrument masterInstrument2 = new MasterInstrument()
@@ -608,7 +607,7 @@ namespace QANinjaAdapter.Services.Instruments
                     }
                 }
                 
-                NinjaTrader.NinjaScript.NinjaScript.Log($"Setting trading hours template: {tradingHoursName}", NinjaTrader.Cbi.LogLevel.Information);
+                Logger.Info($"Setting trading hours template: {tradingHoursName}");
                 
                 // Use reflection to set the trading hours property
                 // This approach avoids direct reference to the TradingHours class which might be causing issues
@@ -654,7 +653,7 @@ namespace QANinjaAdapter.Services.Instruments
                             
                             // Just use this existing trading hours
                             tradingHoursProperty.SetValue(masterInstrument2, existingInstrument.TradingHours);
-                            NinjaTrader.NinjaScript.NinjaScript.Log("Using existing trading hours template", NinjaTrader.Cbi.LogLevel.Information);
+                            Logger.Info("Using existing trading hours template");
                             return true;
                         }
                     }
@@ -662,14 +661,14 @@ namespace QANinjaAdapter.Services.Instruments
                     // If we still couldn't find it, try a direct approach
                     if (tradingHoursType == null)
                     {
-                        NinjaTrader.NinjaScript.NinjaScript.Log("Could not find TradingHours type. Using direct property access.", NinjaTrader.Cbi.LogLevel.Warning);
+                        Logger.Error("Could not find TradingHours type. Using direct property access.");
                         
                         // Try to set the TradingHoursName property instead
                         var tradingHoursNameProperty = typeof(MasterInstrument).GetProperty("TradingHoursName");
                         if (tradingHoursNameProperty != null)
                         {
                             tradingHoursNameProperty.SetValue(masterInstrument2, tradingHoursName);
-                            NinjaTrader.NinjaScript.NinjaScript.Log($"Set TradingHoursName to {tradingHoursName}", NinjaTrader.Cbi.LogLevel.Information);
+                            Logger.Info($"Set TradingHoursName to {tradingHoursName}");
                             return true;
                         }
                         
@@ -708,7 +707,7 @@ namespace QANinjaAdapter.Services.Instruments
                             if (selectedTemplate != null)
                             {
                                 tradingHoursProperty.SetValue(masterInstrument2, selectedTemplate);
-                                NinjaTrader.NinjaScript.NinjaScript.Log("Successfully set trading hours template", NinjaTrader.Cbi.LogLevel.Information);
+                                Logger.Info("Successfully set trading hours template");
                             }
                         }
                     }
@@ -716,7 +715,7 @@ namespace QANinjaAdapter.Services.Instruments
             }
             catch (Exception ex)
             {
-                NinjaTrader.NinjaScript.NinjaScript.Log($"Error setting trading hours: {ex.Message}", NinjaTrader.Cbi.LogLevel.Error);
+                Logger.Error($"Error setting trading hours: {ex.Message}");
             }
             
             masterInstrument2.DbAdd(false);

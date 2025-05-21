@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.WebSockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NinjaTrader.Cbi;
@@ -99,6 +100,34 @@ namespace QANinjaAdapter.Services.MarketData
                 while (ws.State == WebSocketState.Open && !cts.Token.IsCancellationRequested)
                 {
                     WebSocketReceiveResult result = await _webSocketManager.ReceiveMessageAsync(ws, buffer, cts.Token);
+
+                    // Log raw WebSocket message before any processing
+                    if (result.Count > 0) // Only log if there's data
+                    {
+                        string rawMessageContent = "";
+                        if (result.MessageType == WebSocketMessageType.Text)
+                        {
+                            rawMessageContent = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        }
+                        else if (result.MessageType == WebSocketMessageType.Binary)
+                        {
+                            // Convert binary data to hex string for logging
+                            rawMessageContent = BitConverter.ToString(buffer, 0, result.Count).Replace("-", "");
+                        }
+
+                        if (!string.IsNullOrEmpty(rawMessageContent))
+                        {
+                            NinjaTrader.NinjaScript.NinjaScript.Log(
+                                $"[RAW-WS-RECV] Symbol: {nativeSymbolName}, Type: {result.MessageType}, Count: {result.Count}, Data: {rawMessageContent}",
+                                NinjaTrader.Cbi.LogLevel.Information); // Or LogLevel.Debug if preferred
+                        }
+                        else if (result.MessageType != WebSocketMessageType.Close) // Log if not empty and not a close message already handled below
+                        {
+                             NinjaTrader.NinjaScript.NinjaScript.Log(
+                                $"[RAW-WS-RECV] Symbol: {nativeSymbolName}, Type: {result.MessageType}, Count: {result.Count}, Data: [Non-text/binary or empty data received but not a Close message]",
+                                NinjaTrader.Cbi.LogLevel.Warning);
+                        }
+                    }
 
                     if (result.MessageType == WebSocketMessageType.Close)
                         throw new OperationCanceledException("WebSocket closed by server.");
