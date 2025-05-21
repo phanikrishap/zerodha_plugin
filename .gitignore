@@ -1,8 +1,10 @@
 # Ignore obj directories
 **/[Oo]bj/
+**/QA.Tests/[Oo]bj/
 
 # Ignore bin directories
 **/[Bb]in/
+**/QA.Tests/[Bb]in/
 
 # User-specific files
 *.suo
