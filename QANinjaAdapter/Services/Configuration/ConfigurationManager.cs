@@ -129,7 +129,7 @@ namespace QANinjaAdapter.Services.Configuration
                 // Load websocket broker configuration
                 JObject webSocketBrokerConfig = _config[_activeWebSocketBroker] as JObject;
 
-                Logger.Info($"Loading configuration for websocket broker: {_activeWebSocketBroker}, {webSocketBrokerConfig}");
+                Logger.Info($"Loading configuration for websocket broker: {_activeWebSocketBroker}.");
 
                 if (webSocketBrokerConfig != null)
                 {
@@ -188,7 +188,7 @@ namespace QANinjaAdapter.Services.Configuration
             _secretKey = brokerConfig["Secret"]?.ToString() ?? _secretKey;
             _accessToken = brokerConfig["AccessToken"]?.ToString() ?? _accessToken;
 
-            Logger.Info($"Loaded Configuration for the broker {brokerConfig}, apiKey:{_apiKey}, secretKey:{_secretKey}");
+            Logger.Info($"Broker API credentials have been processed.");
         }
 
         /// <summary>
