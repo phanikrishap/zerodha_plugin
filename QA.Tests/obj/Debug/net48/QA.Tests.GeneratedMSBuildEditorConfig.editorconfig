@@ -1,6 +1,6 @@
 is_global = true
 build_property.RootNamespace = QA.Tests
-build_property.ProjectDir = c:\Users\Phani Krishna\CascadeProjects\zerodha_adapter\QA.Tests\
+build_property.ProjectDir = C:\Users\Phani Krishna\CascadeProjects\zerodha_adapter\QA.Tests\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
 build_property.CsWinRTUseWindowsUIXamlProjections = false
