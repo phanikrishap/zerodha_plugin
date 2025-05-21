@@ -3,6 +3,8 @@ using QABrokerAPI.Common.Enums;
 using QABrokerAPI.Zerodha.Websockets;
 using QANinjaAdapter.Classes;
 using QANinjaAdapter.Controls;
+using QANinjaAdapter.Models;
+using QANinjaAdapter.Models.MarketData;
 using QANinjaAdapter.ViewModels;
 using NinjaTrader.Adapter;
 using NinjaTrader.Cbi;
@@ -42,6 +44,10 @@ namespace QANinjaAdapter
         {
             this._ninjaConnection = connection;
             this._options = (QAConnectorOptions)this._ninjaConnection.Options;
+            
+            // Set the adapter instance in the Connector class
+            Connector.SetAdapter(this);
+            
             this._ninjaConnection.OrderTypes = new NinjaTrader.Cbi.OrderType[4]
             {
                 NinjaTrader.Cbi.OrderType.Market,
@@ -336,6 +342,77 @@ namespace QANinjaAdapter
             {
                 this._marketDepthDataSymbols.Remove(name);
                 this._l2Subscriptions.TryRemove(name, out L2Subscription _);
+            }
+        }
+
+        /// <summary>
+        /// Processes a parsed tick data object and updates NinjaTrader with all available market data
+        /// </summary>
+        /// <param name="nativeSymbolName">The native symbol name</param>
+        /// <param name="tickData">The parsed tick data</param>
+        public void ProcessParsedTick(string nativeSymbolName, ZerodhaTickData tickData)
+        {
+            try
+            {
+                if (this._ninjaConnection.Trace.MarketData)
+                    this._ninjaConnection.TraceCallback(string.Format((IFormatProvider)CultureInfo.InvariantCulture,
+                        $"({this._options.Name}) QAAdapter.ProcessParsedTick: instrument='{nativeSymbolName}'"));
+
+                if (this._ninjaConnection.Status == ConnectionStatus.Disconnecting ||
+                    this._ninjaConnection.Status == ConnectionStatus.Disconnected)
+                    return;
+
+                // Check if we have a valid subscription
+                if (!this._l1Subscriptions.TryGetValue(nativeSymbolName, out var l1Subscription))
+                {
+                    return;
+                }
+
+                // Round the price to the instrument's tick size
+                double lastPrice = l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.LastTradePrice);
+                
+                // Calculate volume delta
+                int volumeDelta = Math.Max(0, l1Subscription.PreviousVolume == 0 ? 0 : tickData.TotalQtyTraded - l1Subscription.PreviousVolume);
+                l1Subscription.PreviousVolume = tickData.TotalQtyTraded;
+
+                // Update all callbacks with the comprehensive market data
+                foreach (var cb in l1Subscription.L1Callbacks.Values)
+                {
+                    // Update Last price and volume
+                    cb(MarketDataType.Last, lastPrice, volumeDelta > 0 ? volumeDelta : tickData.LastTradeQty, tickData.LastTradeTime, 0L);
+                    
+                    // Update Bid/Ask
+                    if (tickData.BuyPrice > 0)
+                        cb(MarketDataType.Bid, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.BuyPrice), tickData.BuyQty, tickData.LastTradeTime, 0L);
+                    
+                    if (tickData.SellPrice > 0)
+                        cb(MarketDataType.Ask, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.SellPrice), tickData.SellQty, tickData.LastTradeTime, 0L);
+                    
+                    // Update daily statistics
+                    cb(MarketDataType.DailyVolume, tickData.TotalQtyTraded, tickData.TotalQtyTraded, tickData.LastTradeTime, 0L);
+                    
+                    if (tickData.High > 0)
+                        cb(MarketDataType.DailyHigh, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.High), 0L, tickData.LastTradeTime, 0L);
+                    
+                    if (tickData.Low > 0)
+                        cb(MarketDataType.DailyLow, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.Low), 0L, tickData.LastTradeTime, 0L);
+                    
+                    if (tickData.Open > 0)
+                        cb(MarketDataType.Opening, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.Open), 0L, tickData.LastTradeTime, 0L);
+                    
+                    if (tickData.Close > 0)
+                        cb(MarketDataType.LastClose, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.Close), 0L, tickData.LastTradeTime, 0L);
+                    
+                    // Update open interest if available
+                    if (tickData.OpenInterest > 0)
+                        cb(MarketDataType.OpenInterest, tickData.OpenInterest, tickData.OpenInterest, tickData.LastTradeTime, 0L);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (this._ninjaConnection.Trace.Connect)
+                    this._ninjaConnection.TraceCallback(string.Format((IFormatProvider)CultureInfo.InvariantCulture,
+                        $"({this._options.Name}) QAAdapter.ProcessParsedTick Exception={ex}"));
             }
         }
 

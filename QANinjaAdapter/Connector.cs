@@ -11,6 +11,7 @@ using QANinjaAdapter.Services.MarketData;
 using QANinjaAdapter.Services.Zerodha;
 using QANinjaAdapter.ViewModels;
 using log4net;
+using NinjaTrader.Adapter;
 using NinjaTrader.Cbi;
 using NinjaTrader.Data;
 using NinjaTrader.Gui;
@@ -90,6 +91,26 @@ namespace QANinjaAdapter
                 }
                 return Connector._client;
             }
+        }
+
+        private static QAAdapter _qaAdapter;
+
+        /// <summary>
+        /// Sets the QAAdapter instance
+        /// </summary>
+        /// <param name="adapter">The QAAdapter instance</param>
+        public static void SetAdapter(QAAdapter adapter)
+        {
+            _qaAdapter = adapter;
+        }
+
+        /// <summary>
+        /// Gets the QAAdapter instance
+        /// </summary>
+        /// <returns>The QAAdapter instance</returns>
+        public IAdapter GetAdapter()
+        {
+            return _qaAdapter;
         }
 
         /// <summary>

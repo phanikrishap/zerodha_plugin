@@ -5,6 +5,8 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using QANinjaAdapter.Models;
+using QANinjaAdapter.Models.MarketData;
 using QANinjaAdapter.Services.Zerodha;
 
 namespace QANinjaAdapter.Services.WebSocket
@@ -151,12 +153,13 @@ namespace QANinjaAdapter.Services.WebSocket
         /// </summary>
         /// <param name="data">The binary data</param>
         /// <param name="expectedToken">The expected instrument token</param>
-        /// <returns>A tuple containing the last traded price, last traded quantity, and volume</returns>
-        public (double LastPrice, int LastQuantity, int Volume, DateTime Timestamp) ParseBinaryMessage(byte[] data, int expectedToken)
+        /// <param name="nativeSymbolName">The native symbol name</param>
+        /// <returns>A ZerodhaTickData object containing all market data fields</returns>
+        public Models.MarketData.ZerodhaTickData ParseBinaryMessage(byte[] data, int expectedToken, string nativeSymbolName)
         {
             if (data.Length < 2)
             {
-                return (0, 0, 0, DateTime.Now);
+                return null;
             }
 
             int offset = 0;
@@ -177,7 +180,11 @@ namespace QANinjaAdapter.Services.WebSocket
                     break;
 
                 // Only process packets with valid length
-                if (packetLength != 8 && packetLength != 44 && packetLength != 184)
+                bool isLtpMode = packetLength == 8;
+                bool isQuoteMode = packetLength == 44;
+                bool isFullMode = packetLength == 184;
+
+                if (!isLtpMode && !isQuoteMode && !isFullMode)
                 {
                     offset += packetLength; // Skip this packet
                     continue;
@@ -191,35 +198,103 @@ namespace QANinjaAdapter.Services.WebSocket
                     continue;
                 }
 
-                // Parse the packet
-                int lastTradedPrice = ReadInt32BE(data, offset + 4);
-                double ltp = lastTradedPrice / 100.0;
-
-                int lastTradedQty = 0;
-                int volume = 0;
-                DateTime timestamp = DateTime.Now;
-
-                if (packetLength >= 44)
+                // Create a new ZerodhaTickData object
+                var tickData = new Models.MarketData.ZerodhaTickData
                 {
-                    lastTradedQty = ReadInt32BE(data, offset + 8);
-                    volume = ReadInt32BE(data, offset + 16);
+                    InstrumentToken = iToken,
+                    InstrumentIdentifier = nativeSymbolName,
+                    HasMarketDepth = isFullMode,
+                    IsIndex = false // Determine if it's an index based on token range or other logic
+                };
+
+                // Parse the packet based on mode
+                if (isLtpMode)
+                {
+                    // LTP mode - only last traded price
+                    int lastTradedPrice = ReadInt32BE(data, offset + 4);
+                    tickData.LastTradePrice = lastTradedPrice / 100.0;
+                    tickData.LastTradeTime = DateTime.Now;
+                }
+                else if (isQuoteMode || isFullMode)
+                {
+                    // Quote or Full mode - more fields
+                    int lastTradedPrice = ReadInt32BE(data, offset + 4);
+                    tickData.LastTradePrice = lastTradedPrice / 100.0;
+                    
+                    tickData.LastTradeQty = ReadInt32BE(data, offset + 8);
+                    tickData.AverageTradePrice = ReadInt32BE(data, offset + 12) / 100.0;
+                    tickData.TotalQtyTraded = ReadInt32BE(data, offset + 16);
+                    tickData.BuyQty = ReadInt32BE(data, offset + 20);
+                    tickData.SellQty = ReadInt32BE(data, offset + 24);
+                    tickData.Open = ReadInt32BE(data, offset + 28) / 100.0;
+                    tickData.High = ReadInt32BE(data, offset + 32) / 100.0;
+                    tickData.Low = ReadInt32BE(data, offset + 36) / 100.0;
+                    tickData.Close = ReadInt32BE(data, offset + 40) / 100.0;
 
                     // Get exchange timestamp if available
-                    int exchangeTimestampOffset = offset + (packetLength >= 64 ? 60 : 44);
-                    if (exchangeTimestampOffset + 4 <= offset + packetLength)
+                    if (isFullMode)
                     {
-                        int exchangeTimestamp = ReadInt32BE(data, exchangeTimestampOffset);
-                        if (exchangeTimestamp > 0)
+                        int lastTradedTimestamp = ReadInt32BE(data, offset + 44);
+                        tickData.LastTradeTime = lastTradedTimestamp > 0 
+                            ? UnixSecondsToLocalTime(lastTradedTimestamp) 
+                            : DateTime.Now;
+
+                        tickData.OpenInterest = ReadInt32BE(data, offset + 48);
+                        tickData.OpenInterestDayHigh = ReadInt32BE(data, offset + 52);
+                        tickData.OpenInterestDayLow = ReadInt32BE(data, offset + 56);
+                        
+                        int exchangeTimestamp = ReadInt32BE(data, offset + 60);
+                        tickData.ExchangeTimestamp = exchangeTimestamp > 0 
+                            ? UnixSecondsToLocalTime(exchangeTimestamp) 
+                            : DateTime.Now;
+
+                        // Parse market depth if available
+                        if (isFullMode)
                         {
-                            timestamp = UnixSecondsToLocalTime(exchangeTimestamp);
+                            // Process bids (5 levels)
+                            for (int j = 0; j < 5; j++)
+                            {
+                                int depthOffset = offset + 64 + (j * 12);
+                                int qty = ReadInt32BE(data, depthOffset);
+                                int price = ReadInt32BE(data, depthOffset + 4);
+                                short orders = ReadInt16BE(data, depthOffset + 8);
+
+                                tickData.BidDepth[j] = new Models.DepthEntry
+                                {
+                                    Quantity = qty,
+                                    Price = price / 100.0,
+                                    Orders = orders
+                                };
+                            }
+
+                            // Process asks (5 levels)
+                            for (int j = 0; j < 5; j++)
+                            {
+                                int depthOffset = offset + 124 + (j * 12);
+                                int qty = ReadInt32BE(data, depthOffset);
+                                int price = ReadInt32BE(data, depthOffset + 4);
+                                short orders = ReadInt16BE(data, depthOffset + 8);
+
+                                tickData.AskDepth[j] = new Models.DepthEntry
+                                {
+                                    Quantity = qty,
+                                    Price = price / 100.0,
+                                    Orders = orders
+                                };
+                            }
                         }
+                    }
+                    else
+                    {
+                        // For quote mode, use current time
+                        tickData.LastTradeTime = DateTime.Now;
                     }
                 }
 
-                return (ltp, lastTradedQty, volume, timestamp);
+                return tickData;
             }
 
-            return (0, 0, 0, DateTime.Now);
+            return null;
         }
 
         /// <summary>

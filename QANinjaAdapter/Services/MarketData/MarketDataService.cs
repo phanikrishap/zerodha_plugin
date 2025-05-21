@@ -8,6 +8,8 @@ using NinjaTrader.Cbi;
 using NinjaTrader.Data;
 using QABrokerAPI.Common.Enums;
 using QABrokerAPI.Zerodha.Websockets;
+using QANinjaAdapter.Models;
+using QANinjaAdapter.Models.MarketData;
 using QANinjaAdapter.Services.Configuration;
 using QANinjaAdapter.Services.Instruments;
 using QANinjaAdapter.Services.WebSocket;
@@ -120,28 +122,26 @@ namespace QANinjaAdapter.Services.MarketData
                         continue;
                     }
 
-                    // Parse the binary message
-                    var (lastPrice, lastQuantity, volume, timestamp) = _webSocketManager.ParseBinaryMessage(buffer, tokenInt);
-
-                    // Calculate volume delta
-                    int volumeDelta = Math.Max(0, sub.PreviousVolume == 0 ? 0 : volume - sub.PreviousVolume);
-                    sub.PreviousVolume = volume;
-
-                    // Update NinjaTrader with price and volume
-                    if (!double.IsNaN(lastPrice))
+                    // Parse the binary message into a rich data structure
+                    var tickData = _webSocketManager.ParseBinaryMessage(buffer, tokenInt, nativeSymbolName);
+                    
+                    if (tickData != null)
                     {
-                        lastPrice = sub.Instrument.MasterInstrument.RoundToTickSize(lastPrice);
-                        foreach (var cb in sub.L1Callbacks.Values)
+                        // Use the QAAdapter's ProcessParsedTick method to update NinjaTrader with all available market data
+                        // This is similar to how NimbleMain.UpdateMarketData works in the NimbleData project
+                        QAAdapter adapter = Connector.Instance.GetAdapter() as QAAdapter;
+                        if (adapter != null)
                         {
-                            cb(MarketDataType.Last, lastPrice, volumeDelta > 0 ? volumeDelta : lastQuantity, now, 0L);
+                            adapter.ProcessParsedTick(nativeSymbolName, tickData);
                         }
                     }
 
                     // Log tick information periodically
-                    if (_configManager.EnableVerboseTickLogging)
+                    if (_configManager.EnableVerboseTickLogging && tickData != null)
                     {
                         // Fire and forget the logging task
-                        _ = LogTickInformationAsync(nativeSymbolName, lastPrice, lastQuantity, volume, timestamp, receivedTime);
+                        _ = LogTickInformationAsync(nativeSymbolName, tickData.LastTradePrice, tickData.LastTradeQty, 
+                            tickData.TotalQtyTraded, tickData.LastTradeTime, receivedTime);
                     }
                 }
             }
@@ -339,65 +339,19 @@ namespace QANinjaAdapter.Services.MarketData
         {
             try
             {
-                // Parse the packet
-                int lastTradedPrice = WebSocketManager.ReadInt32BE(data, offset + 4);
-                int lastTradedQty = WebSocketManager.ReadInt32BE(data, offset + 8);
-                int avgTradedPrice = WebSocketManager.ReadInt32BE(data, offset + 12);
-                int volume = WebSocketManager.ReadInt32BE(data, offset + 16);
-                int buyQty = WebSocketManager.ReadInt32BE(data, offset + 20);
-                int sellQty = WebSocketManager.ReadInt32BE(data, offset + 24);
-                int open = WebSocketManager.ReadInt32BE(data, offset + 28);
-                int high = WebSocketManager.ReadInt32BE(data, offset + 32);
-                int low = WebSocketManager.ReadInt32BE(data, offset + 36);
-                int close = WebSocketManager.ReadInt32BE(data, offset + 40);
-                int lastTradedTimestamp = WebSocketManager.ReadInt32BE(data, offset + 44);
-                int oi = WebSocketManager.ReadInt32BE(data, offset + 48);
-                int oiDayHigh = WebSocketManager.ReadInt32BE(data, offset + 52);
-                int oiDayLow = WebSocketManager.ReadInt32BE(data, offset + 56);
-                int exchangeTimestamp = WebSocketManager.ReadInt32BE(data, offset + 60);
+                // Get the instrument token
+                int iToken = WebSocketManager.ReadInt32BE(data, offset);
+                
+                // Parse the binary message into a rich data structure
+                var tickData = _webSocketManager.ParseBinaryMessage(data, iToken, nativeSymbolName);
+                
+                if (tickData == null || !tickData.HasMarketDepth)
+                {
+                    return;
+                }
 
                 // Convert exchange timestamp to local time
-                DateTime localTime = GetIndianTime(DateTime.Now);
-                if (exchangeTimestamp > 0)
-                {
-                    localTime = UnixSecondsToLocalTime(exchangeTimestamp);
-                }
-
-                // Parse bids and asks for market depth
-                var bids = new List<(double price, long quantity)>();
-                var asks = new List<(double price, long quantity)>();
-
-                // Process bids (5 levels)
-                for (int i = 0; i < 5; i++)
-                {
-                    int depthOffset = offset + 64 + (i * 12);
-                    int qty = WebSocketManager.ReadInt32BE(data, depthOffset);
-                    int price = WebSocketManager.ReadInt32BE(data, depthOffset + 4);
-                    short orders = WebSocketManager.ReadInt16BE(data, depthOffset + 8);
-
-                    double bidPrice = price / 100.0;
-
-                    if (qty > 0)
-                    {
-                        bids.Add((bidPrice, qty));
-                    }
-                }
-
-                // Process asks (5 levels)
-                for (int i = 0; i < 5; i++)
-                {
-                    int depthOffset = offset + 124 + (i * 12);
-                    int qty = WebSocketManager.ReadInt32BE(data, depthOffset);
-                    int price = WebSocketManager.ReadInt32BE(data, depthOffset + 4);
-                    short orders = WebSocketManager.ReadInt16BE(data, depthOffset + 8);
-
-                    double askPrice = price / 100.0;
-
-                    if (qty > 0)
-                    {
-                        asks.Add((askPrice, qty));
-                    }
-                }
+                DateTime localTime = tickData.ExchangeTimestamp;
 
                 // Update market depth in NinjaTrader
                 if (l2Subscriptions.TryGetValue(nativeSymbolName, out var l2Subscription))
@@ -405,21 +359,23 @@ namespace QANinjaAdapter.Services.MarketData
                     for (int index = 0; index < l2Subscription.L2Callbacks.Count; ++index)
                     {
                         // Process asks (offers)
-                        foreach (var ask in asks)
+                        foreach (var ask in tickData.AskDepth)
                         {
-                            double price = ask.price;
-                            long quantity = ask.quantity;
-                            l2Subscription.L2Callbacks.Keys[index].UpdateMarketDepth(
-                                MarketDataType.Ask, price, quantity, Operation.Update, localTime, l2Subscription.L2Callbacks.Values[index]);
+                            if (ask != null && ask.Quantity > 0)
+                            {
+                                l2Subscription.L2Callbacks.Keys[index].UpdateMarketDepth(
+                                    MarketDataType.Ask, ask.Price, ask.Quantity, Operation.Update, localTime, l2Subscription.L2Callbacks.Values[index]);
+                            }
                         }
 
                         // Process bids
-                        foreach (var bid in bids)
+                        foreach (var bid in tickData.BidDepth)
                         {
-                            double price = bid.price;
-                            long quantity = bid.quantity;
-                            l2Subscription.L2Callbacks.Keys[index].UpdateMarketDepth(
-                                MarketDataType.Bid, price, quantity, Operation.Update, localTime, l2Subscription.L2Callbacks.Values[index]);
+                            if (bid != null && bid.Quantity > 0)
+                            {
+                                l2Subscription.L2Callbacks.Keys[index].UpdateMarketDepth(
+                                    MarketDataType.Bid, bid.Price, bid.Quantity, Operation.Update, localTime, l2Subscription.L2Callbacks.Values[index]);
+                            }
                         }
                     }
                 }
