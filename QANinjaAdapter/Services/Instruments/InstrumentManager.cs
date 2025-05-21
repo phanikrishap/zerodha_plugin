@@ -496,8 +496,46 @@ namespace QANinjaAdapter.Services.Instruments
                 masterInstrument1.ProviderNames = stringList.ToArray();
                 masterInstrument1.ProviderNames[index] = instrument.Symbol;
 
-                // We don't set trading hours directly
-                // masterInstrument1.TradingHours = tradingHours;
+                // Set default trading hours if not already set
+                if (masterInstrument1.TradingHours == null)
+                {
+                    // Try to find a trading hours template by name
+                    string tradingHoursName = "Default 24 x 7";
+                    // Use reflection to get the trading hours to avoid direct namespace reference
+                    object tradingHoursObj = null;
+                    try {
+                        // Try to find the Get method on TradingHours using reflection
+                        var tradingHoursType = AppDomain.CurrentDomain.GetAssemblies()
+                            .SelectMany(a => a.GetTypes())
+                            .FirstOrDefault(t => t.Name == "TradingHours");
+                            
+                        if (tradingHoursType != null) {
+                            var getMethod = tradingHoursType.GetMethod("Get", new[] { typeof(string) });
+                            if (getMethod != null) {
+                                tradingHoursObj = getMethod.Invoke(null, new object[] { tradingHoursName });
+                            }
+                        }
+                    } catch (Exception ex) {
+                        NinjaTrader.NinjaScript.NinjaScript.Log($"Error getting trading hours: {ex.Message}", NinjaTrader.Cbi.LogLevel.Error);
+                    }
+                    
+                    if (tradingHoursObj != null)
+                    {
+                        NinjaTrader.NinjaScript.NinjaScript.Log($"Setting trading hours template: {tradingHoursName}", NinjaTrader.Cbi.LogLevel.Information);
+                        
+                        // Use reflection to set the TradingHours property to avoid type conversion issues
+                        var tradingHoursProperty = typeof(MasterInstrument).GetProperty("TradingHours");
+                        if (tradingHoursProperty != null)
+                        {
+                            tradingHoursProperty.SetValue(masterInstrument1, tradingHoursObj);
+                        }
+                    }
+                    else
+                    {
+                        NinjaTrader.NinjaScript.NinjaScript.Log("No trading hours template found. Please create a trading hours template in NinjaTrader.", NinjaTrader.Cbi.LogLevel.Error);
+                        return false;
+                    }
+                }
 
                 masterInstrument1.DbUpdate();
                 MasterInstrument.DbUpdateCache();
@@ -517,6 +555,14 @@ namespace QANinjaAdapter.Services.Instruments
             for (int count = stringList1.Count; count <= index1; ++count)
                 stringList1.Add("");
 
+            // We don't set trading hours directly
+            // This is similar to the original plugin's approach
+            NinjaTrader.NinjaScript.NinjaScript.Log("Using default trading hours", NinjaTrader.Cbi.LogLevel.Information);
+            
+            // Set up trading hours - this is crucial to prevent the TradingHours == null error
+            NinjaTrader.NinjaScript.NinjaScript.Log("Setting up trading hours", NinjaTrader.Cbi.LogLevel.Information);
+            
+            // Create the MasterInstrument without setting TradingHours in the constructor
             MasterInstrument masterInstrument2 = new MasterInstrument()
             {
                 Description = instrument.Symbol,
@@ -529,12 +575,150 @@ namespace QANinjaAdapter.Services.Instruments
                     Exchange.Default
                 },
                 Currency = Currency.IndianRupee,
-                // We don't set trading hours directly
-                // TradingHours = tradingHours,
                 ProviderNames = stringList1.ToArray()
             };
 
             masterInstrument2.ProviderNames[index1] = instrument.Symbol;
+            
+            // Set the trading hours property based on segment
+            try
+            {
+                // Determine the appropriate trading hours template based on the segment
+                string tradingHoursName = "Default 24 x 7";
+                
+                // Extract segment from the instrument's QuoteAsset or BaseAsset
+                string segment = instrument.QuoteAsset;
+                if (string.IsNullOrEmpty(segment))
+                {
+                    segment = instrument.BaseAsset;
+                }
+                
+                // Set specific trading hours template based on segment
+                if (!string.IsNullOrEmpty(segment))
+                {
+                    segment = segment.ToUpper();
+                    if (segment.Contains("NSE") || segment.Contains("NFO") || 
+                        segment.Contains("BSE") || segment.Contains("BFO"))
+                    {
+                        tradingHoursName = "Nse";
+                    }
+                    else if (segment.Contains("MCX"))
+                    {
+                        tradingHoursName = "MCX";
+                    }
+                }
+                
+                NinjaTrader.NinjaScript.NinjaScript.Log($"Setting trading hours template: {tradingHoursName}", NinjaTrader.Cbi.LogLevel.Information);
+                
+                // Use reflection to set the trading hours property
+                // This approach avoids direct reference to the TradingHours class which might be causing issues
+                var tradingHoursProperty = typeof(MasterInstrument).GetProperty("TradingHours");
+                if (tradingHoursProperty != null)
+                {
+                    // Try to find the TradingHours class using reflection
+                    Type tradingHoursType = null;
+                    
+                    // Try different possible namespaces for TradingHours
+                    string[] possibleNamespaces = new[] {
+                        "NinjaTrader.Cbi.TradingHours",
+                        "NinjaTrader.Core.TradingHours",
+                        "NinjaTrader.TradingHours"
+                    };
+                    
+                    foreach (var ns in possibleNamespaces)
+                    {
+                        try
+                        {
+                            tradingHoursType = Type.GetType(ns) ?? 
+                                              AppDomain.CurrentDomain.GetAssemblies()
+                                                .SelectMany(a => a.GetTypes())
+                                                .FirstOrDefault(t => t.FullName == ns);
+                                                
+                            if (tradingHoursType != null)
+                                break;
+                        }
+                        catch
+                        {
+                            // Ignore errors and try the next namespace
+                        }
+                    }
+                    
+                    // If we couldn't find the type, try to get it from a known instance
+                    if (tradingHoursType == null)
+                    {
+                        // Try to get a MasterInstrument that has TradingHours set
+                        var existingInstrument = MasterInstrument.All.FirstOrDefault(mi => mi.TradingHours != null);
+                        if (existingInstrument != null && existingInstrument.TradingHours != null)
+                        {
+                            tradingHoursType = existingInstrument.TradingHours.GetType();
+                            
+                            // Just use this existing trading hours
+                            tradingHoursProperty.SetValue(masterInstrument2, existingInstrument.TradingHours);
+                            NinjaTrader.NinjaScript.NinjaScript.Log("Using existing trading hours template", NinjaTrader.Cbi.LogLevel.Information);
+                            return true;
+                        }
+                    }
+                    
+                    // If we still couldn't find it, try a direct approach
+                    if (tradingHoursType == null)
+                    {
+                        NinjaTrader.NinjaScript.NinjaScript.Log("Could not find TradingHours type. Using direct property access.", NinjaTrader.Cbi.LogLevel.Warning);
+                        
+                        // Try to set the TradingHoursName property instead
+                        var tradingHoursNameProperty = typeof(MasterInstrument).GetProperty("TradingHoursName");
+                        if (tradingHoursNameProperty != null)
+                        {
+                            tradingHoursNameProperty.SetValue(masterInstrument2, tradingHoursName);
+                            NinjaTrader.NinjaScript.NinjaScript.Log($"Set TradingHoursName to {tradingHoursName}", NinjaTrader.Cbi.LogLevel.Information);
+                            return true;
+                        }
+                        
+                        return false;
+                    }
+                    
+                    // Get the All property from the TradingHours type
+                    var allTradingHoursProperty = tradingHoursType.GetProperty("All", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    if (allTradingHoursProperty != null)
+                    {
+                        var allTradingHours = allTradingHoursProperty.GetValue(null) as System.Collections.IList;
+                        if (allTradingHours != null && allTradingHours.Count > 0)
+                        {
+                            // Find the trading hours template by name
+                            object selectedTemplate = null;
+                            foreach (var template in allTradingHours)
+                            {
+                                var nameProperty = template.GetType().GetProperty("Name");
+                                if (nameProperty != null)
+                                {
+                                    string name = nameProperty.GetValue(template) as string;
+                                    if (name == tradingHoursName)
+                                    {
+                                        selectedTemplate = template;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // If not found, use the first template
+                            if (selectedTemplate == null && allTradingHours.Count > 0)
+                            {
+                                selectedTemplate = allTradingHours[0];
+                            }
+                            
+                            if (selectedTemplate != null)
+                            {
+                                tradingHoursProperty.SetValue(masterInstrument2, selectedTemplate);
+                                NinjaTrader.NinjaScript.NinjaScript.Log("Successfully set trading hours template", NinjaTrader.Cbi.LogLevel.Information);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                NinjaTrader.NinjaScript.NinjaScript.Log($"Error setting trading hours: {ex.Message}", NinjaTrader.Cbi.LogLevel.Error);
+            }
+            
             masterInstrument2.DbAdd(false);
 
             new Instrument()

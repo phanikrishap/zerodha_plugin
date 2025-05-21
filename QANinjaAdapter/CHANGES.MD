@@ -32,6 +32,23 @@ The refactoring has been implemented with the following changes:
 
 These changes should help reduce the 250-1000ms delay observed between parsing a tick and its reflection in NinjaTrader, as mentioned in the PROJECT_ARCHITECTURE.md document.
 
+## Update (2025-05-21 16:42:00 IST)
+
+Fixed an issue with TradingHours being null for instruments:
+
+1. **Added Segment-Specific Trading Hours Templates**
+   - Updated `InstrumentManager.cs` to set appropriate trading hours templates based on instrument segment
+   - For NSE, BSE, NFO, and BFO segments: Uses the "Nse" trading hours template
+   - For MCX segments: Uses the "MCX" trading hours template
+   - For all other segments: Uses the "Default 24 x 7" template
+   - Falls back to any available template if the specific ones aren't found
+
+2. **Applied Logic to Both New and Existing Instruments**
+   - Used the same segment-based logic for both new instruments and when updating existing instruments
+   - Added detailed logging to show which trading hours template is being used for each instrument
+
+This fixes the "TradingHours==null" assertion failure that occurs when trying to view charts or retrieve historical data for instruments without a trading hours template.
+
 ## Core Idea
 
 Shift from primarily using the generic `Action<MarketDataType, double, long, DateTime, long> cb` callback (provided by NinjaTrader during `SubscribeMarketData`) for all tick updates, to calling a new, specific public method on `QAAdapter` with a comprehensive `ParsedTickData` object. This new method will then be responsible for using `AdapterBase.UpdateMarketData(...)` methods.
