@@ -155,8 +155,9 @@ namespace QANinjaAdapter.Services.WebSocket
         /// <param name="data">The binary data</param>
         /// <param name="expectedToken">The expected instrument token</param>
         /// <param name="nativeSymbolName">The native symbol name</param>
+        /// <param name="isMcxSegment">True if the instrument belongs to MCX segment, false otherwise</param>
         /// <returns>A ZerodhaTickData object containing all market data fields</returns>
-        public Models.MarketData.ZerodhaTickData ParseBinaryMessage(byte[] data, int expectedToken, string nativeSymbolName)
+        public Models.MarketData.ZerodhaTickData ParseBinaryMessage(byte[] data, int expectedToken, string nativeSymbolName, bool isMcxSegment)
         {
             if (data.Length < 2)
             {
@@ -185,7 +186,16 @@ namespace QANinjaAdapter.Services.WebSocket
                 bool isQuoteMode = packetLength == 44;
                 bool isFullMode = packetLength == 184;
 
-                if (!isLtpMode && !isQuoteMode && !isFullMode)
+                // If it's an MCX segment, override isFullMode to false if it was true.
+                // This ensures MCX instruments are always parsed as if they are at most 44-byte quote packets.
+                if (isMcxSegment && isFullMode)
+                {
+                    isFullMode = false; // Force to not parse beyond quote mode for MCX
+                    // isQuoteMode remains true if packetLength was 44, or becomes effectively true for parsing if packetLength was 184.
+                    // If packetLength was 184, it will now fall into the (isQuoteMode || isFullMode) block but the subsequent isFullMode checks will be false.
+                }
+
+                if (!isLtpMode && !isQuoteMode && !(packetLength == 184)) // Adjusted condition to account for the MCX override of isFullMode
                 {
                     offset += packetLength; // Skip this packet
                     continue;
@@ -215,8 +225,9 @@ namespace QANinjaAdapter.Services.WebSocket
                     int lastTradedPrice = ReadInt32BE(data, offset + 4);
                     tickData.LastTradePrice = lastTradedPrice / 100.0;
                     tickData.LastTradeTime = DateTime.Now;
+                    tickData.ExchangeTimestamp = DateTime.Now; // Set ExchangeTimestamp for LTP mode
                 }
-                else if (isQuoteMode || isFullMode)
+                else if (isQuoteMode || isFullMode || (isMcxSegment && packetLength == 184)) // Ensure MCX 184-byte packets are processed by this block too
                 {
                     // Quote or Full mode - more fields
                     int lastTradedPrice = ReadInt32BE(data, offset + 4);
@@ -232,8 +243,12 @@ namespace QANinjaAdapter.Services.WebSocket
                     tickData.Low = ReadInt32BE(data, offset + 36) / 100.0;
                     tickData.Close = ReadInt32BE(data, offset + 40) / 100.0;
 
-                    // Get exchange timestamp if available
-                    if (isFullMode)
+                    // Default timestamps for Quote mode, will be overwritten if Full mode
+                    tickData.LastTradeTime = DateTime.Now;
+                    tickData.ExchangeTimestamp = DateTime.Now;
+
+                    // Get exchange timestamp if available (only for true Full mode, not MCX full)
+                    if (isFullMode) // This isFullMode is now correctly false for MCX full packets due to earlier override
                     {
                         int lastTradedTimestamp = ReadInt32BE(data, offset + 44);
                         tickData.LastTradeTime = lastTradedTimestamp > 0 
@@ -284,11 +299,6 @@ namespace QANinjaAdapter.Services.WebSocket
                                 };
                             }
                         }
-                    }
-                    else
-                    {
-                        // For quote mode, use current time
-                        tickData.LastTradeTime = DateTime.Now;
                     }
                 }
 

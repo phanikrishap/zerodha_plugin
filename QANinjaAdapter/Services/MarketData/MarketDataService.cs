@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -14,6 +15,7 @@ using QANinjaAdapter.Models.MarketData;
 using QANinjaAdapter.Services.Configuration;
 using QANinjaAdapter.Services.Instruments;
 using QANinjaAdapter.Services.WebSocket;
+using QANinjaAdapter;
 
 namespace QANinjaAdapter.Services.MarketData
 {
@@ -26,6 +28,9 @@ namespace QANinjaAdapter.Services.MarketData
         private readonly InstrumentManager _instrumentManager;
         private readonly WebSocketManager _webSocketManager;
         private readonly ConfigurationManager _configManager;
+        private readonly ConcurrentDictionary<string, L1Subscription> _l1Subscriptions; 
+        private readonly ConcurrentDictionary<string, L2Subscription> _l2Subscriptions;
+        private readonly ConcurrentDictionary<string, int> _lastVolumeMap = new ConcurrentDictionary<string, int>(); // Added for volumeDelta
 
         /// <summary>
         /// Gets the singleton instance of the MarketDataService
@@ -130,13 +135,33 @@ namespace QANinjaAdapter.Services.MarketData
                     }
 
                     if (result.MessageType == WebSocketMessageType.Close)
-                        throw new OperationCanceledException("WebSocket closed by server.");
+                    {
+                        NinjaTrader.NinjaScript.NinjaScript.Log(
+                            $"[TICK-SUBSCRIBE] WebSocket closed by server for {nativeSymbolName}. Status: {result.CloseStatus}, Description: {result.CloseStatusDescription}",
+                            NinjaTrader.Cbi.LogLevel.Warning);
+                        break; // Exit the loop gracefully
+                    }
 
                     if (result.MessageType == WebSocketMessageType.Text)
                         continue; // Ignore JSON heartbeats/postbacks
 
-                    // Skip processing if no valid data
-                    if (result.Count < 2) continue;
+                    // Specific logging for 1-byte binary messages
+                    if (result.MessageType == WebSocketMessageType.Binary && result.Count == 1)
+                    {
+                        NinjaTrader.NinjaScript.NinjaScript.Log(
+                            $"[WS-DEBUG] Received 1-byte binary message for {nativeSymbolName}. Data: {BitConverter.ToString(buffer, 0, result.Count)}. Potentially significant.",
+                            NinjaTrader.Cbi.LogLevel.Warning);
+                        // Let it fall through to be handled by the next check or parser, which should reject it.
+                    }
+
+                    // Skip processing if no valid data, ensuring Close messages are not caught here
+                    if (result.Count < 2 && result.MessageType != WebSocketMessageType.Close) 
+                    {
+                         NinjaTrader.NinjaScript.NinjaScript.Log(
+                            $"[WS-DEBUG] Skipping processing for {nativeSymbolName} due to insufficient data (Count: {result.Count}, Type: {result.MessageType}).",
+                            NinjaTrader.Cbi.LogLevel.Information);
+                        continue;
+                    }
 
                     // Timestamp message receipt immediately to reduce timing errors
                     var receivedTime = DateTime.Now;
@@ -151,8 +176,13 @@ namespace QANinjaAdapter.Services.MarketData
                         continue;
                     }
 
+                    // Fetch segment
+                    string segment = _instrumentManager.GetSegmentForToken(tokenInt);
+                    bool isMcxSegment = !string.IsNullOrEmpty(segment) && segment.Equals("MCX", StringComparison.OrdinalIgnoreCase);
+
                     // Parse the binary message into a rich data structure
-                    var tickData = _webSocketManager.ParseBinaryMessage(buffer, tokenInt, nativeSymbolName);
+                    var tickData = _webSocketManager.ParseBinaryMessage(buffer, tokenInt, nativeSymbolName, isMcxSegment);
+                    DateTime parsedTime = DateTime.Now; // Capture time immediately after parsing
                     
                     if (tickData != null)
                     {
@@ -163,10 +193,39 @@ namespace QANinjaAdapter.Services.MarketData
                         {
                             adapter.ProcessParsedTick(nativeSymbolName, tickData);
                         }
+
+                        // Log to TickVolumeLogger CSV
+                        int currentVolume = tickData.TotalQtyTraded;
+                        _lastVolumeMap.TryGetValue(nativeSymbolName, out int previousVolume);
+                        int volumeDelta = currentVolume - previousVolume;
+                        _lastVolumeMap[nativeSymbolName] = currentVolume; // Update last volume
+
+                        // Assuming tickData.ExchangeTimestamp is a DateTime. If it's long (Unix), it needs conversion.
+                        // For now, passing as is. If ZerodhaTickData.ExchangeTimestamp is not DateTime, this will need adjustment.
+                        DateTime exchangeTime = tickData.ExchangeTimestamp; // Ensure this is a valid DateTime in ZerodhaTickData
+                        
+                        TickVolumeLogger.LogTickVolume(
+                            nativeSymbolName,
+                            receivedTime,      // Time WS message was received
+                            exchangeTime,      // Exchange timestamp from tick data
+                            parsedTime,        // Time after parsing
+                            tickData.LastTradePrice,
+                            tickData.LastTradeQty,
+                            currentVolume,
+                            volumeDelta
+                        );
+
+                        // Log tick information periodically
+                        if (_configManager.EnableVerboseTickLogging)
+                        {
+                            // Fire and forget the logging task
+                            _ = LogTickInformationAsync(nativeSymbolName, tickData.LastTradePrice, tickData.LastTradeQty, 
+                                tickData.TotalQtyTraded, tickData.LastTradeTime, receivedTime);
+                        }
                     }
 
-                    // Log tick information periodically
-                    if (_configManager.EnableVerboseTickLogging && tickData != null)
+                    // Log tick information periodically to main log
+                    if (_configManager.EnableVerboseTickLogging)
                     {
                         // Fire and forget the logging task
                         _ = LogTickInformationAsync(nativeSymbolName, tickData.LastTradePrice, tickData.LastTradeQty, 
@@ -266,7 +325,12 @@ namespace QANinjaAdapter.Services.MarketData
                     WebSocketReceiveResult result = await _webSocketManager.ReceiveMessageAsync(ws, buffer, cts.Token);
 
                     if (result.MessageType == WebSocketMessageType.Close)
-                        throw new OperationCanceledException("WebSocket closed by server.");
+                    {
+                        NinjaTrader.NinjaScript.NinjaScript.Log(
+                            $"[DEPTH-SUBSCRIBE] WebSocket closed by server for {nativeSymbolName}. Status: {result.CloseStatus}, Description: {result.CloseStatusDescription}",
+                            NinjaTrader.Cbi.LogLevel.Warning);
+                        break; // Exit the loop gracefully
+                    }
 
                     if (result.MessageType == WebSocketMessageType.Text)
                         continue; // Ignore JSON heartbeats/postbacks
@@ -371,8 +435,12 @@ namespace QANinjaAdapter.Services.MarketData
                 // Get the instrument token
                 int iToken = WebSocketManager.ReadInt32BE(data, offset);
                 
+                // Get segment information for MCX check
+                string segment = _instrumentManager.GetSegmentForToken(iToken);
+                bool isMcxSegment = !string.IsNullOrEmpty(segment) && segment.Equals("MCX", StringComparison.OrdinalIgnoreCase);
+                
                 // Parse the binary message into a rich data structure
-                var tickData = _webSocketManager.ParseBinaryMessage(data, iToken, nativeSymbolName);
+                var tickData = _webSocketManager.ParseBinaryMessage(data, iToken, nativeSymbolName, isMcxSegment);
                 
                 if (tickData == null || !tickData.HasMarketDepth)
                 {
