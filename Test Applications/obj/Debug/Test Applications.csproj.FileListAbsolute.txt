@@ -16,7 +16,6 @@ C:\Users\Phani Krishna\CascadeProjects\zerodha_adapter\Test Applications\bin\Deb
 C:\Users\Phani Krishna\CascadeProjects\zerodha_adapter\Test Applications\bin\Debug\Test Applications.exe
 C:\Users\Phani Krishna\CascadeProjects\zerodha_adapter\Test Applications\bin\Debug\Test Applications.pdb
 C:\Users\Phani Krishna\CascadeProjects\zerodha_adapter\Test Applications\obj\Debug\Test Applications.csproj.AssemblyReference.cache
-C:\Users\Phani Krishna\CascadeProjects\zerodha_adapter\Test Applications\obj\Debug\Test Applications.exe.config
 C:\Users\Phani Krishna\CascadeProjects\zerodha_adapter\Test Applications\obj\Debug\Test Applications.csproj.CoreCompileInputs.cache
 C:\Users\Phani Krishna\CascadeProjects\zerodha_adapter\Test Applications\obj\Debug\Test Applications.exe
 C:\Users\Phani Krishna\CascadeProjects\zerodha_adapter\Test Applications\obj\Debug\Test Applications.pdb
