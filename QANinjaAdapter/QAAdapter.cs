@@ -356,62 +356,152 @@ namespace QANinjaAdapter
         {
             try
             {
+                // Log entry to ProcessParsedTick
+                NinjaTrader.NinjaScript.NinjaScript.Log(
+                    $"[PROCESS-TICK] Processing tick for {nativeSymbolName}: LTP={tickData.LastTradePrice}, LTQ={tickData.LastTradeQty}, Vol={tickData.TotalQtyTraded}, Time={tickData.LastTradeTime:HH:mm:ss.fff}",
+                    NinjaTrader.Cbi.LogLevel.Information);
+
                 if (this._ninjaConnection.Trace.MarketData)
                     this._ninjaConnection.TraceCallback(string.Format((IFormatProvider)CultureInfo.InvariantCulture,
                         $"({this._options.Name}) QAAdapter.ProcessParsedTick: instrument='{nativeSymbolName}'"));
 
                 if (this._ninjaConnection.Status == ConnectionStatus.Disconnecting ||
                     this._ninjaConnection.Status == ConnectionStatus.Disconnected)
+                {
+                    NinjaTrader.NinjaScript.NinjaScript.Log(
+                        $"[PROCESS-TICK] Connection disconnecting/disconnected for {nativeSymbolName}, skipping tick processing",
+                        NinjaTrader.Cbi.LogLevel.Warning);
                     return;
+                }
 
                 // Check if we have a valid subscription
                 if (!this._l1Subscriptions.TryGetValue(nativeSymbolName, out var l1Subscription))
                 {
+                    NinjaTrader.NinjaScript.NinjaScript.Log(
+                        $"[PROCESS-TICK] No L1 subscription found for {nativeSymbolName}",
+                        NinjaTrader.Cbi.LogLevel.Warning);
                     return;
                 }
+
+                // Log subscription details
+                NinjaTrader.NinjaScript.NinjaScript.Log(
+                    $"[PROCESS-TICK] Found subscription for {nativeSymbolName}, callbacks count: {l1Subscription.L1Callbacks?.Count ?? 0}, previous volume: {l1Subscription.PreviousVolume}",
+                    NinjaTrader.Cbi.LogLevel.Information);
 
                 // Round the price to the instrument's tick size
                 double lastPrice = l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.LastTradePrice);
                 
                 // Calculate volume delta
                 int volumeDelta = Math.Max(0, l1Subscription.PreviousVolume == 0 ? 0 : tickData.TotalQtyTraded - l1Subscription.PreviousVolume);
+                int oldVolume = l1Subscription.PreviousVolume; // Store for logging
                 l1Subscription.PreviousVolume = tickData.TotalQtyTraded;
 
+                NinjaTrader.NinjaScript.NinjaScript.Log(
+                    $"[PROCESS-TICK] Volume calculation for {nativeSymbolName}: Previous={oldVolume}, Current={tickData.TotalQtyTraded}, Delta={volumeDelta}",
+                    NinjaTrader.Cbi.LogLevel.Information);
+
                 // Update all callbacks with the comprehensive market data
+                int callbackCount = 0;
                 foreach (var cb in l1Subscription.L1Callbacks.Values)
                 {
-                    // Update Last price and volume
-                    cb(MarketDataType.Last, lastPrice, volumeDelta > 0 ? volumeDelta : tickData.LastTradeQty, tickData.LastTradeTime, 0L);
-                    
-                    // Update Bid/Ask
-                    if (tickData.BuyPrice > 0)
-                        cb(MarketDataType.Bid, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.BuyPrice), tickData.BuyQty, tickData.LastTradeTime, 0L);
-                    
-                    if (tickData.SellPrice > 0)
-                        cb(MarketDataType.Ask, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.SellPrice), tickData.SellQty, tickData.LastTradeTime, 0L);
-                    
-                    // Update daily statistics
-                    cb(MarketDataType.DailyVolume, tickData.TotalQtyTraded, tickData.TotalQtyTraded, tickData.LastTradeTime, 0L);
-                    
-                    if (tickData.High > 0)
-                        cb(MarketDataType.DailyHigh, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.High), 0L, tickData.LastTradeTime, 0L);
-                    
-                    if (tickData.Low > 0)
-                        cb(MarketDataType.DailyLow, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.Low), 0L, tickData.LastTradeTime, 0L);
-                    
-                    if (tickData.Open > 0)
-                        cb(MarketDataType.Opening, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.Open), 0L, tickData.LastTradeTime, 0L);
-                    
-                    if (tickData.Close > 0)
-                        cb(MarketDataType.LastClose, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.Close), 0L, tickData.LastTradeTime, 0L);
-                    
-                    // Update open interest if available
-                    if (tickData.OpenInterest > 0)
-                        cb(MarketDataType.OpenInterest, tickData.OpenInterest, tickData.OpenInterest, tickData.LastTradeTime, 0L);
+                    callbackCount++;
+                    try
+                    {
+                        // Log before invoking callback
+                        NinjaTrader.NinjaScript.NinjaScript.Log(
+                            $"[CALLBACK-PRE] {nativeSymbolName} #{callbackCount}: Invoking Last callback with price={lastPrice}, volume={(volumeDelta > 0 ? volumeDelta : tickData.LastTradeQty)}",
+                            NinjaTrader.Cbi.LogLevel.Information);
+
+                        // Get the current time in Indian Standard Time
+                        DateTime now = DateTime.Now;
+                        try
+                        {
+                            var tz = TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+                            now = TimeZoneInfo.ConvertTime(now, tz);
+                        }
+                        catch
+                        {
+                            // If timezone conversion fails, use local time
+                        }
+
+                        NinjaTrader.NinjaScript.NinjaScript.Log(
+                            $"[CALLBACK-TIME] {nativeSymbolName} #{callbackCount}: Using time {now:HH:mm:ss.fff} with Kind={now.Kind}",
+                            NinjaTrader.Cbi.LogLevel.Information);
+
+                        // Update Last price and volume
+                        cb(MarketDataType.Last, lastPrice, volumeDelta > 0 ? volumeDelta : tickData.LastTradeQty, now, 0L);
+                        
+                        // Update Bid/Ask
+                        if (tickData.BuyPrice > 0)
+                        {
+                            NinjaTrader.NinjaScript.NinjaScript.Log(
+                                $"[CALLBACK-PRE] {nativeSymbolName} #{callbackCount}: Invoking Bid callback with price={tickData.BuyPrice}, qty={tickData.BuyQty}",
+                                NinjaTrader.Cbi.LogLevel.Information);
+                            cb(MarketDataType.Bid, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.BuyPrice), tickData.BuyQty, now, 0L);
+                        }
+                        
+                        if (tickData.SellPrice > 0)
+                        {
+                            NinjaTrader.NinjaScript.NinjaScript.Log(
+                                $"[CALLBACK-PRE] {nativeSymbolName} #{callbackCount}: Invoking Ask callback with price={tickData.SellPrice}, qty={tickData.SellQty}",
+                                NinjaTrader.Cbi.LogLevel.Information);
+                            cb(MarketDataType.Ask, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.SellPrice), tickData.SellQty, now, 0L);
+                        }
+
+                        // Log the callback object to check if it's valid
+                        NinjaTrader.NinjaScript.NinjaScript.Log(
+                            $"[CALLBACK-DEBUG] {nativeSymbolName} #{callbackCount}: Callback object is {(cb != null ? "valid" : "null")}",
+                            NinjaTrader.Cbi.LogLevel.Information);
+                        
+                        // Update daily statistics
+                        cb(MarketDataType.DailyVolume, tickData.TotalQtyTraded, tickData.TotalQtyTraded, now, 0L);
+                        
+                        if (tickData.High > 0)
+                            cb(MarketDataType.DailyHigh, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.High), 0L, now, 0L);
+                        
+                        if (tickData.Low > 0)
+                            cb(MarketDataType.DailyLow, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.Low), 0L, now, 0L);
+                        
+                        if (tickData.Open > 0)
+                            cb(MarketDataType.Opening, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.Open), 0L, now, 0L);
+                        
+                        if (tickData.Close > 0)
+                            cb(MarketDataType.LastClose, l1Subscription.Instrument.MasterInstrument.RoundToTickSize(tickData.Close), 0L, now, 0L);
+                        
+                        // Update open interest if available
+                        if (tickData.OpenInterest > 0)
+                            cb(MarketDataType.OpenInterest, tickData.OpenInterest, tickData.OpenInterest, now, 0L);
+
+                        // Log after invoking callback
+                        NinjaTrader.NinjaScript.NinjaScript.Log(
+                            $"[CALLBACK-POST] {nativeSymbolName} #{callbackCount}: Successfully invoked all callbacks",
+                            NinjaTrader.Cbi.LogLevel.Information);
+                    }
+                    catch (Exception cbEx)
+                    {
+                        // Log callback exception
+                        NinjaTrader.NinjaScript.NinjaScript.Log(
+                            $"[CALLBACK-ERROR] {nativeSymbolName} #{callbackCount}: Exception in callback: {cbEx.Message}",
+                            NinjaTrader.Cbi.LogLevel.Error);
+                    }
                 }
+
+                // Log summary of callback invocations
+                NinjaTrader.NinjaScript.NinjaScript.Log(
+                    $"[PROCESS-TICK] Completed processing tick for {nativeSymbolName}, invoked {callbackCount} callbacks",
+                    NinjaTrader.Cbi.LogLevel.Information);
             }
             catch (Exception ex)
             {
+                // Log detailed exception information
+                NinjaTrader.NinjaScript.NinjaScript.Log(
+                    $"[PROCESS-TICK-ERROR] Exception processing tick for {nativeSymbolName}: {ex.Message}",
+                    NinjaTrader.Cbi.LogLevel.Error);
+                
+                NinjaTrader.NinjaScript.NinjaScript.Log(
+                    $"[PROCESS-TICK-ERROR] Stack trace: {ex.StackTrace}",
+                    NinjaTrader.Cbi.LogLevel.Error);
+
                 if (this._ninjaConnection.Trace.Connect)
                     this._ninjaConnection.TraceCallback(string.Format((IFormatProvider)CultureInfo.InvariantCulture,
                         $"({this._options.Name}) QAAdapter.ProcessParsedTick Exception={ex}"));

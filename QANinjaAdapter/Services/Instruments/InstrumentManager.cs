@@ -29,6 +29,7 @@ namespace QANinjaAdapter.Services.Instruments
         // Database file path
         private const string DB_FILE_PATH = "NinjaTrader 8\\QAAdapter\\mapped_instruments.json";
         private Dictionary<string, long> _symbolToTokenMap = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<long, InstrumentData> _tokenToInstrumentDataMap = new Dictionary<long, InstrumentData>();
         private bool _isInitialized = false;
 
         /// <summary>
@@ -80,6 +81,7 @@ namespace QANinjaAdapter.Services.Instruments
                         if (!string.IsNullOrEmpty(instrument.symbol) && instrument.instrument_token > 0)
                         {
                             _symbolToTokenMap[instrument.symbol] = instrument.instrument_token;
+                            _tokenToInstrumentDataMap[instrument.instrument_token] = instrument;
                             
                             // Also map zerodhaSymbol if it's different
                             if (!string.IsNullOrEmpty(instrument.zerodhaSymbol) && 
@@ -91,7 +93,7 @@ namespace QANinjaAdapter.Services.Instruments
                     }
                     
                     _isInitialized = true;
-                    Logger.Info($"InstrumentManager: Loaded {_symbolToTokenMap.Count} instrument mappings from {jsonFilePath}");
+                    Logger.Info($"InstrumentManager: Loaded {_symbolToTokenMap.Count} instrument mappings and {_tokenToInstrumentDataMap.Count} token-to-data mappings from {jsonFilePath}");
                 }
             }
             catch (Exception ex)
@@ -781,6 +783,21 @@ namespace QANinjaAdapter.Services.Instruments
 
                 return ntSymbols;
             });
+        }
+
+        /// <summary>
+        /// Gets the segment for a given instrument token.
+        /// </summary>
+        /// <param name="token">The instrument token.</param>
+        /// <returns>The segment string if found; otherwise, null.</returns>
+        public string GetSegmentForToken(long token)
+        {
+            if (_isInitialized && _tokenToInstrumentDataMap.TryGetValue(token, out InstrumentData data))
+            {
+                return data.segment;
+            }
+            Logger.Warn($"InstrumentManager: Instrument data not found for token {token} when trying to get segment.");
+            return null;
         }
 
         /// <summary>

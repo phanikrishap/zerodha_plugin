@@ -66,7 +66,7 @@ namespace QANinjaAdapter
                         _initialized = true;
                         
                         // Log initialization
-                        Logger.Info($"Tick volume logger initialized. Data will be saved to: {_logFilePath}");
+                        QANinjaAdapter.Logger.Info($"Tick volume logger initialized. Data will be saved to: {_logFilePath}");
                     }
                     catch (Exception ex)
                     {
@@ -133,7 +133,7 @@ namespace QANinjaAdapter
             catch (Exception ex)
             {
                 // Log the error using the main logger
-                Logger.Error($"Error logging tick volume: {ex.Message}", ex);
+                QANinjaAdapter.Logger.Error($"Error logging tick volume: {ex.Message}", ex);
             }
         }
 

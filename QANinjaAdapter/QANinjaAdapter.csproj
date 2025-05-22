@@ -37,7 +37,7 @@
   <ItemGroup>
     <Reference Include="log4net, Version=2.0.9.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\References\log4net.dll</HintPath>
+      <HintPath>lib\log4net.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.Extensions.Caching.Abstractions">
       <HintPath>..\References\Microsoft.Extensions.Caching.Abstractions.dll</HintPath>
@@ -208,6 +208,7 @@
     <Compile Include="Parsers\DataParser.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="QALogger.cs" />
+    <Compile Include="TickVolumeLogger.cs" />
     <Compile Include="Services\Configuration\ConfigurationManager.cs" />
     <Compile Include="Services\Zerodha\ZerodhaClient.cs" />
     <Compile Include="Services\Instruments\InstrumentManager.cs" />
