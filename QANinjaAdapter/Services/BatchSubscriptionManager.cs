@@ -46,7 +46,10 @@ namespace QANinjaAdapter.Services
                 try
                 {
                     AppLogger.Log("BatchSubscriptionManager: Attempting to connect WebSocket for batch subscriptions...", QANinjaAdapter.Logging.LogLevel.Information); 
-                    _batchWebSocket = await _webSocketManager.ConnectAsync(_webSocketUrl, _apiKey, _accessToken);
+                    
+                    // Create a new WebSocket client for batch subscriptions
+                    _batchWebSocket = _webSocketManager.CreateWebSocketClient();
+                    await _webSocketManager.ConnectAsync(_batchWebSocket, _webSocketUrl, _apiKey, _accessToken);
                     
                     if (_batchWebSocket != null && _batchWebSocket.State == WebSocketState.Open)
                     {

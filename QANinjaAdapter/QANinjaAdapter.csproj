@@ -178,6 +178,13 @@
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="QAAdapter.cs" />
     <Compile Include="QAAdapterAddOn\Styles.cs" />
+    <Compile Include="Services\WebSocket\WebSocketConnection.cs" />
+    <Compile Include="Services\WebSocket\WebSocketConnectionFactory.cs" />
+    <Compile Include="Services\WebSocket\WebSocketConnectionHealthMonitor.cs" />
+    <Compile Include="Services\WebSocket\WebSocketConnectionManager.cs" />
+    <Compile Include="Services\WebSocket\WebSocketManager.cs" />
+    <Compile Include="Services\WebSocket\WebSocketMessageParser.cs" />
+    <Compile Include="Services\WebSocket\WebSocketSubscriptionManager.cs" />
     <Compile Include="QAAdapterAddOn\ViewModels\LoadViewModel.cs" />
     <Compile Include="QAConnectorOptions.cs" />
     <Compile Include="Classes\Binance\Klines\Kline.cs" />

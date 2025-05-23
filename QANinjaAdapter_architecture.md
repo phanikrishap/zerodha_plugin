@@ -129,13 +129,44 @@ graph TD
         *   Routes processed data to appropriate subscription callbacks.
     *   Transforms parsed `ZerodhaTickData` into NinjaTrader market data updates.
 
-*   **`Services.WebSocket.WebSocketManager` (Singleton)**:
-    *   Handles the WebSocket connection lifecycle (connect, disconnect, message handling) with Zerodha's Kite WebSocket API.
-    *   Receives raw binary market data packets.
-    *   `ParseBinaryMessage(byte[] data, int expectedToken, string nativeSymbolName, bool isMcxSegment)`:
-        *   Parses the binary data into a structured `Models.MarketData.ZerodhaTickData` object.
-        *   Distinguishes between different packet modes (LTP, Quote, Full) based on packet length.
-        *   **Recent Change**: Modified to accept `isMcxSegment` boolean. If `true`, it ensures that even if a full 184-byte packet is received, parsing is capped at the 44-byte "quote" mode structure, effectively ignoring the additional depth data for MCX instruments as per requirements.
+*   **`Services.WebSocket` (Refactored Module)**:
+    *   Recently refactored into a modular architecture with clear separation of concerns:
+    
+    *   **`Services.WebSocket.WebSocketManager` (Singleton)**:
+        *   Acts as a facade that delegates to specialized WebSocket components.
+        *   Provides a simplified API for other components to interact with WebSocket functionality.
+        *   Coordinates between connection management, subscription handling, and message parsing.
+        
+    *   **`Services.WebSocket.WebSocketConnectionManager` (Singleton)**:
+        *   Manages the lifecycle of WebSocket connections (creation, monitoring, closing).
+        *   Maintains a pool of connections for different purposes.
+        *   Coordinates with other WebSocket components for health monitoring and connection management.
+        
+    *   **`Services.WebSocket.WebSocketConnection`**:
+        *   Represents a single WebSocket connection with its state and operations.
+        *   Encapsulates connection-specific functionality like sending/receiving messages.
+        *   Tracks connection health metrics (uptime, activity, reconnect attempts).
+        
+    *   **`Services.WebSocket.WebSocketConnectionFactory`**:
+        *   Responsible for creating WebSocket connections with proper configuration.
+        *   Handles WebSocket client initialization and performance settings.
+        
+    *   **`Services.WebSocket.WebSocketConnectionHealthMonitor` (Singleton)**:
+        *   Monitors the health of WebSocket connections.
+        *   Handles reconnection logic for unhealthy connections.
+        *   Provides periodic health check functionality.
+        
+    *   **`Services.WebSocket.WebSocketSubscriptionManager` (Singleton)**:
+        *   Manages subscriptions to market data symbols.
+        *   Handles the sending of subscription messages to the Zerodha WebSocket.
+        *   Provides batch subscription capabilities for efficient handling of multiple symbols.
+        
+    *   **`Services.WebSocket.WebSocketMessageParser` (Singleton)**:
+        *   Parses binary messages from the Zerodha WebSocket API.
+        *   `ParseBinaryMessage(byte[] data, int expectedToken, string nativeSymbolName, bool isMcxSegment)`:
+            *   Parses the binary data into a structured `Models.MarketData.ZerodhaTickData` object.
+            *   Distinguishes between different packet modes (LTP, Quote, Full) based on packet length.
+            *   **Recent Change**: Modified to accept `isMcxSegment` boolean. If `true`, it ensures that even if a full 184-byte packet is received, parsing is capped at the 44-byte "quote" mode structure, effectively ignoring the additional depth data for MCX instruments as per requirements.
 
 ### 2.4. Data Models
 

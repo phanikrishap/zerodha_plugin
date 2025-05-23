@@ -86,6 +86,19 @@ namespace QANinjaAdapter.Services.WebSocket
         {
             return await _connectionManager.ConnectAsync(wsUrl, apiKey, accessToken);
         }
+        
+        /// <summary>
+        /// Gets a dedicated WebSocket connection for a specific purpose
+        /// </summary>
+        /// <param name="purpose">A string identifying the purpose of this connection</param>
+        /// <param name="wsUrl">The WebSocket URL</param>
+        /// <param name="apiKey">The API key</param>
+        /// <param name="accessToken">The access token</param>
+        /// <returns>A dedicated ClientWebSocket instance</returns>
+        public async Task<ClientWebSocket> GetDedicatedConnectionAsync(string purpose, string wsUrl, string apiKey, string accessToken)
+        {
+            return await _connectionManager.GetDedicatedConnectionAsync(purpose, wsUrl, apiKey, accessToken);
+        }
 
         /// <summary>
         /// Subscribes to a symbol in the specified mode
@@ -166,6 +179,52 @@ namespace QANinjaAdapter.Services.WebSocket
         public MarketDataEventArgs ParseBinaryMessage(byte[] data, long expectedToken, string nativeSymbolName, bool isMcxSegment = false)
         {
             return _messageParser.ParseBinaryMessage(data, expectedToken, nativeSymbolName, isMcxSegment);
+        }
+        
+        /// <summary>
+        /// Checks if a WebSocket connection is healthy and reconnects if needed
+        /// </summary>
+        /// <param name="ws">The WebSocket client to check</param>
+        /// <param name="wsUrl">The WebSocket URL</param>
+        /// <param name="apiKey">The API key</param>
+        /// <param name="accessToken">The access token</param>
+        /// <returns>True if the connection is healthy or was successfully reconnected, false otherwise</returns>
+        public async Task<bool> EnsureConnectionHealthyAsync(ClientWebSocket ws, string wsUrl, string apiKey, string accessToken)
+        {
+            if (ws == null || ws.State != WebSocketState.Open)
+            {
+                AppLogger.Log("WebSocket connection is not healthy, attempting to reconnect", QANinjaAdapter.Logging.LogLevel.Warning);
+                
+                try
+                {
+                    // Try to close and dispose the existing connection if it exists
+                    if (ws != null)
+                    {
+                        try
+                        {
+                            await _connectionManager.CloseAsync(ws);
+                        }
+                        catch (Exception ex)
+                        {
+                            AppLogger.Log($"Error closing unhealthy WebSocket: {ex.Message}", QANinjaAdapter.Logging.LogLevel.Warning);
+                        }
+                    }
+                    
+                    // Create a new connection
+                    var newWs = CreateWebSocketClient();
+                    await ConnectAsync(newWs, wsUrl, apiKey, accessToken);
+                    
+                    // Return the new connection status
+                    return newWs.State == WebSocketState.Open;
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Log($"Failed to reconnect WebSocket: {ex.Message}", QANinjaAdapter.Logging.LogLevel.Error);
+                    return false;
+                }
+            }
+            
+            return true; // Connection is already healthy
         }
     }
 }
