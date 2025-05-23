@@ -82,6 +82,35 @@ namespace QANinjaAdapter.Services.WebSocket
             string wsUrl = _zerodhaClient.GetWebSocketUrl();
             await ws.ConnectAsync(new Uri(wsUrl), CancellationToken.None);
         }
+        
+        /// <summary>
+        /// Connects to a WebSocket with the specified URL, API key, and access token
+        /// </summary>
+        /// <param name="ws">The WebSocket client</param>
+        /// <param name="wsUrl">The WebSocket URL</param>
+        /// <param name="apiKey">The API key</param>
+        /// <param name="accessToken">The access token</param>
+        /// <returns>A task representing the asynchronous operation</returns>
+        public async Task ConnectAsync(ClientWebSocket ws, string wsUrl, string apiKey, string accessToken)
+        {
+            await ws.ConnectAsync(new Uri(wsUrl), CancellationToken.None);
+            // Additional authentication logic if needed
+        }
+        
+        /// <summary>
+        /// Creates a new WebSocket client and connects to the specified URL with API key and access token
+        /// </summary>
+        /// <param name="wsUrl">The WebSocket URL</param>
+        /// <param name="apiKey">The API key</param>
+        /// <param name="accessToken">The access token</param>
+        /// <returns>A connected ClientWebSocket instance</returns>
+        public async Task<ClientWebSocket> ConnectAsync(string wsUrl, string apiKey, string accessToken)
+        {
+            var ws = new ClientWebSocket();
+            await ws.ConnectAsync(new Uri(wsUrl), CancellationToken.None);
+            // Additional authentication logic if needed
+            return ws;
+        }
 
         /// <summary>
         /// Subscribes to a symbol in the specified mode
@@ -118,18 +147,40 @@ namespace QANinjaAdapter.Services.WebSocket
                 return;
             }
             
-            // Log the batch subscription
-            Logger.Info($"[WS-BATCH-SUBSCRIBE] Subscribing to {instrumentTokens.Count} instruments in {mode} mode");
-            
-            // First subscribe to all instruments at once
-            string subscribeMsg = $@"{{""a"":""subscribe"",""v"":[{string.Join(",", instrumentTokens)}]}}";
-            await SendTextMessageAsync(ws, subscribeMsg);
-
-            // Then set the mode for all instruments
-            string modeMsg = $@"{{""a"":""mode"",""v"":[""{mode}"",[{string.Join(",", instrumentTokens)}]]}}";
-            await SendTextMessageAsync(ws, modeMsg);
-            
-            Logger.Info($"[WS-BATCH-SUBSCRIBE] Successfully subscribed to {instrumentTokens.Count} instruments in {mode} mode");
+            try
+            {
+                // If mode is "subscribe", only send the subscribe message, no mode message
+                if (mode == "subscribe")
+                {
+                    Logger.Info($"[WS-BATCH-SUBSCRIBE] Initial subscription to {instrumentTokens.Count} instruments. Tokens: {string.Join(",", instrumentTokens)}");
+                    
+                    string subscribeMsg = $@"{{""a"":""subscribe"",""v"":[{string.Join(",", instrumentTokens)}]}}";
+                    Logger.Info($"[WS-BATCH-SUBSCRIBE-MSG] Sending subscribe message: {subscribeMsg}");
+                    await SendTextMessageAsync(ws, subscribeMsg);
+                    
+                    Logger.Info($"[WS-BATCH-SUBSCRIBE] Successfully sent initial subscription message for {instrumentTokens.Count} instruments");
+                }
+                else
+                {
+                    // This is a mode-setting message for already subscribed instruments
+                    Logger.Info($"[WS-BATCH-SUBSCRIBE] Setting {mode} mode for {instrumentTokens.Count} instruments. Tokens: {string.Join(",", instrumentTokens)}");
+                    
+                    // Set the mode for these instruments
+                    string modeMsg = $@"{{""a"":""mode"",""v"":[""{mode}"",[{string.Join(",", instrumentTokens)}]]}}";
+                    Logger.Info($"[WS-BATCH-SUBSCRIBE-MSG] Sending mode message: {modeMsg}");
+                    await SendTextMessageAsync(ws, modeMsg);
+                    
+                    Logger.Info($"[WS-BATCH-SUBSCRIBE] Successfully set {mode} mode for {instrumentTokens.Count} instruments");
+                }
+                
+                // Add a small delay to ensure message is processed before continuing
+                await Task.Delay(100);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[WS-BATCH-SUBSCRIBE-ERROR] Error during batch subscription: {ex.Message}", ex);
+                throw;
+            }
         }
 
         /// <summary>

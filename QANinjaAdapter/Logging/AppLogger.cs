@@ -14,6 +14,7 @@ namespace QANinjaAdapter.Logging
             log4net.Config.XmlConfigurator.Configure();
         }
 
+        // Original method signature
         public static void Log(string message, LoggingLevel level = null)
         {
             level = level ?? LoggingLevel.Information;
@@ -34,10 +35,39 @@ namespace QANinjaAdapter.Logging
             {
                 Logger.Debug(message);
             }
-            else
+        }
+
+        // Overload with reversed parameters to match existing code
+        public static void Log(LoggingLevel level, string message)
+        {
+            Log(message, level);
+        }
+        
+        // Support for LogLevel class
+        public static void Log(string message, LogLevel level)
+        {
+            if (level == LogLevel.Information)
             {
                 Logger.Info(message);
             }
+            else if (level == LogLevel.Warning)
+            {
+                Logger.Warn(message);
+            }
+            else if (level == LogLevel.Error)
+            {
+                Logger.Error(message);
+            }
+            else if (level == LogLevel.Debug)
+            {
+                Logger.Debug(message);
+            }
+        }
+        
+        // Overload with reversed parameters for LogLevel
+        public static void Log(LogLevel level, string message)
+        {
+            Log(message, level);
         }
 
         public static void Info(string message)

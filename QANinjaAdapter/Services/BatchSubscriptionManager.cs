@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using QANinjaAdapter.Services.WebSocket; 
 using NinjaTrader.Cbi; 
 using NinjaTrader.NinjaScript; 
+using QANinjaAdapter.Logging;
 
 namespace QANinjaAdapter.Services
 {
@@ -118,12 +119,30 @@ namespace QANinjaAdapter.Services
             }
         }
 
-        public void QueueInstrumentSubscription(int instrumentToken)
+        // Dictionary to track which mode each token should use
+        private readonly Dictionary<int, string> _tokenModes = new Dictionary<int, string>();
+        
+        public void QueueInstrumentSubscription(int instrumentToken, string instrumentName = null, string mode = null)
         {
             if (_isDisposed)
             {
                 NinjaTrader.NinjaScript.NinjaScript.Log("BatchSubscriptionManager: Attempted to queue subscription on disposed object.", NinjaTrader.Cbi.LogLevel.Warning);
                 return;
+            }
+            
+            // If mode is not explicitly provided, determine it based on instrument name
+            if (string.IsNullOrEmpty(mode))
+            {
+                mode = "quote"; // Default to quote mode for most instruments
+                if (instrumentName == "NIFTY_I")
+                {
+                    mode = "full"; // Use full mode for NIFTY_I
+                    NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Using FULL mode for NIFTY_I (token: {instrumentToken})", NinjaTrader.Cbi.LogLevel.Information);
+                }
+            }
+            else
+            {
+                NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Using explicitly provided {mode.ToUpper()} mode for {instrumentName} (token: {instrumentToken})", NinjaTrader.Cbi.LogLevel.Information);
             }
 
             lock (_lock)
@@ -131,7 +150,14 @@ namespace QANinjaAdapter.Services
                 if (!_pendingInstrumentTokens.Contains(instrumentToken))
                 {
                     _pendingInstrumentTokens.Add(instrumentToken);
-                    NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Queued token {instrumentToken}. Pending: {_pendingInstrumentTokens.Count}", NinjaTrader.Cbi.LogLevel.Information); 
+                    
+                    // Store the mode for this token
+                    if (!_tokenModes.ContainsKey(instrumentToken))
+                    {
+                        _tokenModes[instrumentToken] = mode;
+                    }
+                    
+                    NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Queued token {instrumentToken} in {mode} mode. Pending: {_pendingInstrumentTokens.Count}", NinjaTrader.Cbi.LogLevel.Information); 
                 }
 
                 if (_pendingInstrumentTokens.Count >= MaxBatchSize)
@@ -152,6 +178,8 @@ namespace QANinjaAdapter.Services
             if (_isDisposed) return;
 
             List<int> tokensToSubscribe;
+            Dictionary<int, string> tokenModesToProcess = new Dictionary<int, string>();
+            
             lock (_lock)
             {
                 if (_pendingInstrumentTokens.Count == 0)
@@ -159,6 +187,20 @@ namespace QANinjaAdapter.Services
 
                 tokensToSubscribe = new List<int>(_pendingInstrumentTokens.Take(MaxBatchSize));
                 _pendingInstrumentTokens.RemoveRange(0, Math.Min(tokensToSubscribe.Count, _pendingInstrumentTokens.Count));
+                
+                // Get the mode for each token
+                foreach (int token in tokensToSubscribe)
+                {
+                    if (_tokenModes.ContainsKey(token))
+                    {
+                        tokenModesToProcess[token] = _tokenModes[token];
+                    }
+                    else
+                    {
+                        // Default to quote mode if not specified
+                        tokenModesToProcess[token] = "quote";
+                    }
+                }
                 
                 NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Processing batch of {tokensToSubscribe.Count} tokens. Remaining in queue: {_pendingInstrumentTokens.Count}", NinjaTrader.Cbi.LogLevel.Information); 
 
@@ -185,8 +227,31 @@ namespace QANinjaAdapter.Services
 
                 try
                 {
-                    await _webSocketManager.BatchSubscribeAsync(_batchWebSocket, tokensToSubscribe, "full"); 
-                    NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Batch subscription sent for {tokensToSubscribe.Count} tokens: {string.Join(",", tokensToSubscribe)}", NinjaTrader.Cbi.LogLevel.Information); 
+                    // First subscribe to all tokens with a single message
+                    await _webSocketManager.BatchSubscribeAsync(_batchWebSocket, tokensToSubscribe, "subscribe");
+                    NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Initial subscription sent for {tokensToSubscribe.Count} tokens: {string.Join(",", tokensToSubscribe)}", NinjaTrader.Cbi.LogLevel.Information);
+                    
+                    // Wait a short time to ensure subscription is processed
+                    await Task.Delay(200);
+                    
+                    // Group tokens by mode
+                    var tokensByMode = tokenModesToProcess.GroupBy(pair => pair.Value)
+                                                         .ToDictionary(g => g.Key, g => g.Select(pair => pair.Key).ToList());
+                    
+                    // Set mode for each group of tokens
+                    foreach (var modeGroup in tokensByMode)
+                    {
+                        string mode = modeGroup.Key;
+                        List<int> modeTokens = modeGroup.Value;
+                        
+                        NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Setting {mode} mode for {modeTokens.Count} tokens", NinjaTrader.Cbi.LogLevel.Information);
+                        await _webSocketManager.BatchSubscribeAsync(_batchWebSocket, modeTokens, mode);
+                        
+                        // Add a small delay between mode changes
+                        await Task.Delay(100);
+                    }
+                    
+                    NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Successfully completed all subscriptions for {tokensToSubscribe.Count} tokens", NinjaTrader.Cbi.LogLevel.Information); 
                 }
                 catch (WebSocketException wsEx)
                 {

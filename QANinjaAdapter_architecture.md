@@ -101,11 +101,32 @@ graph TD
     *   Provides instrument details, including the `segment` (e.g., NSE, NFO, MCX).
     *   **Recent Change**: Modified to include `_tokenToInstrumentDataMap` and `GetSegmentForToken(long token)` method to allow `MarketDataService` to fetch segment information using the instrument token. This is crucial for MCX-specific parsing logic.
 
-*   **`Services.MarketData.MarketDataService` (Singleton)**:
-    *   Manages the overall flow of incoming market data from the WebSocket.
-    *   Subscribes to ticks/depth via `WebSocketManager` (implicitly, by receiving data from it).
-    *   **Recent Change**: In `SubscribeToTicks` and `ProcessDepthPacket`, it now calls `_instrumentManager.GetSegmentForToken()` to determine if an instrument belongs to the MCX segment. It passes an `isMcxSegment` boolean to `WebSocketManager.ParseBinaryMessage()`.
-    *   Delegates the parsing of raw binary messages to `WebSocketManager.ParseBinaryMessage()`.
+*   **`Services.MarketData` (Refactored Module)**:
+    *   Recently refactored into a modular architecture with clear separation of concerns:
+    
+    *   **`Services.MarketData.MarketDataService` (Singleton)**:
+        *   Acts as the orchestrator and primary API surface for other components.
+        *   Manages subscriptions to market data via simplified public methods.
+        *   Delegates specific responsibilities to specialized components.
+        *   Implements proper resource cleanup via IDisposable pattern.
+
+    *   **`Services.MarketData.Connection.WebSocketConnectionManager`**:
+        *   Handles WebSocket connection lifecycle (connect, disconnect, reconnect).
+        *   Manages a single shared WebSocket connection for all subscriptions.
+        *   Processes incoming binary messages and raises events for data handlers.
+        *   Provides thread-safe connection state management.
+
+    *   **`Services.MarketData.Subscription.SubscriptionManager`**:
+        *   Manages subscription requests and routing of market data updates.
+        *   Integrates with BatchSubscriptionManager for efficient subscription handling.
+        *   Maps between symbol names and instrument tokens.
+        *   Handles subscription mode selection (LTP, quote, full) based on instrument type.
+
+    *   **`Services.MarketData.Processing.DataProcessingService`**:
+        *   Processes binary WebSocket messages and converts to typed data objects.
+        *   Implements binary parsing for Zerodha's market data format.
+        *   Maintains cached tick data for each instrument.
+        *   Routes processed data to appropriate subscription callbacks.
     *   Transforms parsed `ZerodhaTickData` into NinjaTrader market data updates.
 
 *   **`Services.WebSocket.WebSocketManager` (Singleton)**:

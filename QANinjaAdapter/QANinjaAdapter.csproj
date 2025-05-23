@@ -191,9 +191,16 @@
     <Compile Include="Models\MarketData\MarketDataType.cs" />
     <Compile Include="Services\WebSocket\WebSocketManager.cs" />
     <Compile Include="Services\Instruments\InstrumentManager.cs" />
-    <Compile Include="Services\Configuration\ConfigurationManager.cs" /> 
+    <Compile Include="Services\Configuration\ConfigurationManager.cs" />
+    <Compile Include="Services\MarketData\MarketDataService.cs" />
+    <Compile Include="Services\MarketData\Connection\WebSocketConnectionManager.cs" />
+    <Compile Include="Services\MarketData\Processing\DataProcessingService.cs" />
+    <Compile Include="Services\MarketData\Subscription\SubscriptionManager.cs" />
+    <Compile Include="Services\BatchSubscriptionManager.cs" /> 
     <Compile Include="Classes\Record.cs" />
     <Compile Include="Connector.cs" />
+    <Compile Include="Logging\AppLogger.cs" />
+    <Compile Include="Logging\LoggingLevel.cs" />
     <Compile Include="Models\DepthEntry.cs" />
     <Compile Include="Models\MappedInstrument.cs" />
     <Compile Include="Models\MarketData\ZerodhaTickData.cs" />

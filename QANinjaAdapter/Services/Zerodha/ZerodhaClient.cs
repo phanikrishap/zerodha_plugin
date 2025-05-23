@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using QANinjaAdapter.Services.Configuration;
+using QANinjaAdapter.Logging;
 
 namespace QANinjaAdapter.Services.Zerodha
 {
@@ -81,18 +82,18 @@ namespace QANinjaAdapter.Services.Zerodha
                         {
                             // Specific log for token errors
                             Logger.Error($"Access token invalid or expired: {errorMessage}");
-                            NinjaTrader.NinjaScript.NinjaScript.Log($"Authentication Error: Access token invalid or expired. Please update your token.", NinjaTrader.Cbi.LogLevel.Error);
+                            AppLogger.Log($"Authentication Error: Access token invalid or expired. Please update your token.", QANinjaAdapter.Logging.LogLevel.Error);
                         }
                         else
                         {
                             // General API error
-                            NinjaTrader.NinjaScript.NinjaScript.Log(content, NinjaTrader.Cbi.LogLevel.Error);
+                            AppLogger.Log(content, QANinjaAdapter.Logging.LogLevel.Error);
                         }
                     }
                     catch
                     {
                         // If JSON parsing fails, log the raw content
-                        NinjaTrader.NinjaScript.NinjaScript.Log(content, NinjaTrader.Cbi.LogLevel.Error);
+                        AppLogger.Log(content, QANinjaAdapter.Logging.LogLevel.Error);
                     }
                 }
 
