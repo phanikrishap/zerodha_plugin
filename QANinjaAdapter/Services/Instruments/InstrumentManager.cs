@@ -140,6 +140,35 @@ namespace QANinjaAdapter.Services.Instruments
                     
                 if (!match.Equals(default(KeyValuePair<string, long>)))
                     return match.Value;
+                
+                // If still not found, try with _I suffix for futures
+                if (!symbol.EndsWith("_I"))
+                {
+                    string symbolWithSuffix = symbol + "_I";
+                    if (_symbolToTokenMap.TryGetValue(symbolWithSuffix, out long tokenWithSuffix))
+                        return tokenWithSuffix;
+                        
+                    // Try case-insensitive with suffix
+                    var matchWithSuffix = _symbolToTokenMap.FirstOrDefault(kvp => 
+                        string.Equals(kvp.Key, symbolWithSuffix, StringComparison.OrdinalIgnoreCase));
+                        
+                    if (!matchWithSuffix.Equals(default(KeyValuePair<string, long>)))
+                        return matchWithSuffix.Value;
+                }
+                // If symbol ends with _I, try without suffix
+                else if (symbol.EndsWith("_I"))
+                {
+                    string symbolWithoutSuffix = symbol.Substring(0, symbol.Length - 2);
+                    if (_symbolToTokenMap.TryGetValue(symbolWithoutSuffix, out long tokenWithoutSuffix))
+                        return tokenWithoutSuffix;
+                        
+                    // Try case-insensitive without suffix
+                    var matchWithoutSuffix = _symbolToTokenMap.FirstOrDefault(kvp => 
+                        string.Equals(kvp.Key, symbolWithoutSuffix, StringComparison.OrdinalIgnoreCase));
+                        
+                    if (!matchWithoutSuffix.Equals(default(KeyValuePair<string, long>)))
+                        return matchWithoutSuffix.Value;
+                }
 
                 throw new KeyNotFoundException($"Instrument token not found for symbol: {symbol}");
             }

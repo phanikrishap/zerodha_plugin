@@ -9,13 +9,13 @@ using QANinjaAdapter.Services.MarketData.Connection;
 using QANinjaAdapter.Services.MarketData.Processing;
 using QANinjaAdapter.Services.Configuration;
 using QANinjaAdapter.Services.Instruments;
-using QANinjaAdapter.Services.WebSocket;
+using WebSocketConnectionManagerNS = QANinjaAdapter.Services.WebSocket.WebSocketConnectionManager;
 
 namespace QANinjaAdapter.Services.MarketData.Subscription
 {
     public class SubscriptionManager : IDisposable
     {
-        private readonly WebSocketConnectionManager _connectionManager;
+        private readonly QANinjaAdapter.Services.MarketData.Connection.WebSocketConnectionManager _connectionManager;
         private readonly DataProcessingService _dataProcessor;
         private readonly BatchSubscriptionManager _batchManager;
         private readonly ConcurrentDictionary<string, L1Subscription> _subscriptions = new ConcurrentDictionary<string, L1Subscription>();
@@ -23,7 +23,7 @@ namespace QANinjaAdapter.Services.MarketData.Subscription
         private bool _isDisposed = false;
         private readonly object _lock = new object();
         
-        public SubscriptionManager(WebSocketConnectionManager connectionManager, DataProcessingService dataProcessor)
+        public SubscriptionManager(QANinjaAdapter.Services.MarketData.Connection.WebSocketConnectionManager connectionManager, DataProcessingService dataProcessor)
         {
             _connectionManager = connectionManager ?? throw new ArgumentNullException(nameof(connectionManager));
             _dataProcessor = dataProcessor ?? throw new ArgumentNullException(nameof(dataProcessor));
@@ -39,7 +39,9 @@ namespace QANinjaAdapter.Services.MarketData.Subscription
                 
                 if (!string.IsNullOrEmpty(webSocketUrl) && !string.IsNullOrEmpty(apiKey) && !string.IsNullOrEmpty(accessToken))
                 {
-                    _batchManager = new BatchSubscriptionManager(WebSocketManager.Instance, webSocketUrl, apiKey, accessToken);
+                    _batchManager = new BatchSubscriptionManager(QANinjaAdapter.Services.WebSocket.WebSocketManager.Instance, webSocketUrl, apiKey, accessToken);
+                    // Initialize the batch manager immediately
+                    _ = _batchManager.InitializeAsync();
                     AppLogger.Log(LoggingLevel.Information, "BatchSubscriptionManager initialized successfully");
                 }
                 else
@@ -145,8 +147,8 @@ namespace QANinjaAdapter.Services.MarketData.Subscription
         
         private string DetermineSubscriptionMode(string symbol)
         {
-            // NIFTY_I always uses full mode, others use quote mode
-            return symbol == "NIFTY_I" ? "full" : "quote";
+            // Always use full mode for all symbols to ensure complete market data
+            return "full";
         }
         
         public async Task<bool> Unsubscribe(string symbol, string exchange)

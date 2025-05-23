@@ -45,7 +45,7 @@ namespace QANinjaAdapter.Services
             {
                 try
                 {
-                    NinjaTrader.NinjaScript.NinjaScript.Log("BatchSubscriptionManager: Attempting to connect WebSocket for batch subscriptions...", NinjaTrader.Cbi.LogLevel.Information); 
+                    AppLogger.Log("BatchSubscriptionManager: Attempting to connect WebSocket for batch subscriptions...", QANinjaAdapter.Logging.LogLevel.Information); 
                     _batchWebSocket = await _webSocketManager.ConnectAsync(_webSocketUrl, _apiKey, _accessToken);
                     
                     if (_batchWebSocket != null && _batchWebSocket.State == WebSocketState.Open)
@@ -142,7 +142,7 @@ namespace QANinjaAdapter.Services
             }
             else
             {
-                NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Using explicitly provided {mode.ToUpper()} mode for {instrumentName} (token: {instrumentToken})", NinjaTrader.Cbi.LogLevel.Information);
+                AppLogger.Log($"BatchSubscriptionManager: Using explicitly provided {mode.ToUpper()} mode for {instrumentName} (token: {instrumentToken})", QANinjaAdapter.Logging.LogLevel.Information);
             }
 
             lock (_lock)
@@ -157,7 +157,7 @@ namespace QANinjaAdapter.Services
                         _tokenModes[instrumentToken] = mode;
                     }
                     
-                    NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Queued token {instrumentToken} in {mode} mode. Pending: {_pendingInstrumentTokens.Count}", NinjaTrader.Cbi.LogLevel.Information); 
+                    AppLogger.Log($"BatchSubscriptionManager: Queued token {instrumentToken} in {mode} mode. Pending: {_pendingInstrumentTokens.Count}", QANinjaAdapter.Logging.LogLevel.Information); 
                 }
 
                 if (_pendingInstrumentTokens.Count >= MaxBatchSize)
@@ -202,7 +202,7 @@ namespace QANinjaAdapter.Services
                     }
                 }
                 
-                NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Processing batch of {tokensToSubscribe.Count} tokens. Remaining in queue: {_pendingInstrumentTokens.Count}", NinjaTrader.Cbi.LogLevel.Information); 
+                AppLogger.Log($"BatchSubscriptionManager: Processing batch of {tokensToSubscribe.Count} tokens. Remaining in queue: {_pendingInstrumentTokens.Count}", QANinjaAdapter.Logging.LogLevel.Information); 
 
                 if (_pendingInstrumentTokens.Count > 0)
                 {
@@ -219,7 +219,7 @@ namespace QANinjaAdapter.Services
             {
                 if (_batchWebSocket == null || _batchWebSocket.State != WebSocketState.Open)
                 {
-                    NinjaTrader.NinjaScript.NinjaScript.Log("BatchSubscriptionManager: WebSocket not connected. Re-queueing tokens.", NinjaTrader.Cbi.LogLevel.Error);
+                    AppLogger.Log("BatchSubscriptionManager: WebSocket not connected. Re-queueing tokens.", QANinjaAdapter.Logging.LogLevel.Error);
                     ReQueueTokens(tokensToSubscribe);
                     _ = InitializeAsync(); 
                     return;
@@ -229,7 +229,7 @@ namespace QANinjaAdapter.Services
                 {
                     // First subscribe to all tokens with a single message
                     await _webSocketManager.BatchSubscribeAsync(_batchWebSocket, tokensToSubscribe, "subscribe");
-                    NinjaTrader.NinjaScript.NinjaScript.Log($"BatchSubscriptionManager: Initial subscription sent for {tokensToSubscribe.Count} tokens: {string.Join(",", tokensToSubscribe)}", NinjaTrader.Cbi.LogLevel.Information);
+                    AppLogger.Log($"BatchSubscriptionManager: Initial subscription sent for {tokensToSubscribe.Count} tokens: {string.Join(",", tokensToSubscribe)}", QANinjaAdapter.Logging.LogLevel.Information);
                     
                     // Wait a short time to ensure subscription is processed
                     await Task.Delay(200);

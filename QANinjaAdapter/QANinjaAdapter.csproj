@@ -190,6 +190,9 @@
     <Compile Include="Models\MarketData\MarketDataEventArgs.cs" />
     <Compile Include="Models\MarketData\MarketDataType.cs" />
     <Compile Include="Services\WebSocket\WebSocketManager.cs" />
+    <Compile Include="Services\WebSocket\WebSocketConnectionManager.cs" />
+    <Compile Include="Services\WebSocket\WebSocketSubscriptionManager.cs" />
+    <Compile Include="Services\WebSocket\WebSocketMessageParser.cs" />
     <Compile Include="Services\Instruments\InstrumentManager.cs" />
     <Compile Include="Services\Configuration\ConfigurationManager.cs" />
     <Compile Include="Services\MarketData\MarketDataService.cs" />
