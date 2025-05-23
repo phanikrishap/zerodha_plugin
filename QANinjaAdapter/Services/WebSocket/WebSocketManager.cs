@@ -349,15 +349,48 @@ namespace QANinjaAdapter.Services.WebSocket
                     if (offset + packetLength > data.Length)
                         break;
 
-                    // Only process packets with valid length
+                    // Try to detect packet structure based on length
                     bool isLtpMode = packetLength == 8;
                     bool isQuoteMode = packetLength == 44;
                     bool isFullMode = packetLength == 184;
-
+                    bool isIndexPacket = packetLength == 28 || packetLength == 32; // Index packets are shorter
+                    
                     // If it's an MCX segment, override isFullMode to false if it was true.
                     if (isMcxSegment && isFullMode)
                     {
+                        Logger.Info($"[PARSE-MCX] Detected full mode packet for MCX instrument {nativeSymbolName}, limiting to quote mode parsing");
                         isFullMode = false; // Force to not parse beyond quote mode for MCX
+                        isQuoteMode = true; // Force to parse as quote mode
+                    }
+                    
+                    // Auto-detect packet mode if none of the standard sizes match
+                    if (!isLtpMode && !isQuoteMode && !isFullMode && !isIndexPacket && packetLength >= 8)
+                    {
+                        Logger.Warn($"[PARSE-DETECT] Non-standard packet length ({packetLength}) for {nativeSymbolName}, attempting to auto-detect structure");
+                        
+                        // If packet is at least LTP size, treat it as LTP
+                        if (packetLength >= 8)
+                        {
+                            isLtpMode = true;
+                            Logger.Info($"[PARSE-DETECT] Treating packet as LTP mode for {nativeSymbolName} (length: {packetLength})");
+                        }
+                        
+                        // If packet is at least quote size, treat it as quote
+                        if (packetLength >= 44)
+                        {
+                            isQuoteMode = true;
+                            isLtpMode = false; // Override LTP mode
+                            Logger.Info($"[PARSE-DETECT] Treating packet as quote mode for {nativeSymbolName} (length: {packetLength})");
+                        }
+                        
+                        // If packet is large enough for full mode and not MCX, treat as full
+                        if (packetLength >= 184 && !isMcxSegment)
+                        {
+                            isFullMode = true;
+                            isQuoteMode = false; // Override quote mode
+                            isLtpMode = false;   // Override LTP mode
+                            Logger.Info($"[PARSE-DETECT] Treating packet as full mode for {nativeSymbolName} (length: {packetLength})");
+                        }
                     }
 
                     if (!isLtpMode && !isQuoteMode && !(packetLength == 184))

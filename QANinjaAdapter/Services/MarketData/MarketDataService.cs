@@ -87,22 +87,28 @@ namespace QANinjaAdapter.Services.MarketData
                     count++;
                     completionSources[request.InstrumentToken] = request.CompletionSource;
                     
-                    // Add to the appropriate batch based on mode
-                    switch (request.Mode.ToLower())
+                    // Determine appropriate mode based on symbol name
+                    if (request.NativeSymbolName == "NIFTY_I")
                     {
-                        case "ltp":
-                            ltpTokens.Add(request.InstrumentToken);
-                            break;
-                        case "quote":
-                            quoteTokens.Add(request.InstrumentToken);
-                            break;
-                        case "full":
-                            fullTokens.Add(request.InstrumentToken);
-                            break;
-                        default:
-                            // Default to quote mode
-                            quoteTokens.Add(request.InstrumentToken);
-                            break;
+                        // NIFTY_I always uses full mode
+                        fullTokens.Add(request.InstrumentToken);
+                        Logger.Info($"Using full mode for NIFTY_I (token: {request.InstrumentToken})");
+                    }
+                    else if (request.Mode.ToLower() == "ltp")
+                    {
+                        ltpTokens.Add(request.InstrumentToken);
+                    }
+                    else if (request.Mode.ToLower() == "full")
+                    {
+                        // Honor explicit full mode request for other instruments
+                        fullTokens.Add(request.InstrumentToken);
+                        Logger.Info($"Using full mode for {request.NativeSymbolName} (token: {request.InstrumentToken}) as explicitly requested");
+                    }
+                    else
+                    {
+                        // Default to quote mode for all other instruments
+                        quoteTokens.Add(request.InstrumentToken);
+                        Logger.Info($"Using quote mode for {request.NativeSymbolName} (token: {request.InstrumentToken})");
                     }
                 }
                 
