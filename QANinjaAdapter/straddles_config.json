@@ -1,0 +1,18 @@
+[
+  {
+    "SyntheticSymbolNinjaTrader": "NIFTY25000STRDL",
+    "CESymbol": "NIFTY2460725000CE",
+    "PESymbol": "NIFTY2460725000PE",
+    "TickSize": 0.05,
+    "PointValue": 50.0,
+    "Currency": "INR"
+  },
+  {
+    "SyntheticSymbolNinjaTrader": "BANKNIFTY48000STRDL",
+    "CESymbol": "BANKNIFTY2460748000CE",
+    "PESymbol": "BANKNIFTY2460748000PE",
+    "TickSize": 0.05,
+    "PointValue": 15.0,
+    "Currency": "INR"
+  }
+]

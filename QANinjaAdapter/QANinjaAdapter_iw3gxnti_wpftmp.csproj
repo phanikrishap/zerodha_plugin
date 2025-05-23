@@ -1,0 +1,225 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{A738CD17-D508-4534-81F7-CBC5F7D54E71}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>QANinjaAdapter</RootNamespace>
+    <AssemblyName>QANinjaAdapter</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <LangVersion>13</LangVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Annotations\AspChildControlTypeAttribute.cs" />
+    <Compile Include="Annotations\AspDataFieldAttribute.cs" />
+    <Compile Include="Annotations\AspDataFieldsAttribute.cs" />
+    <Compile Include="Annotations\AspMethodPropertyAttribute.cs" />
+    <Compile Include="Annotations\AspMvcActionAttribute.cs" />
+    <Compile Include="Annotations\AspMvcActionSelectorAttribute.cs" />
+    <Compile Include="Annotations\AspMvcAreaAttribute.cs" />
+    <Compile Include="Annotations\AspMvcAreaMasterLocationFormatAttribute.cs" />
+    <Compile Include="Annotations\AspMvcAreaPartialViewLocationFormatAttribute.cs" />
+    <Compile Include="Annotations\AspMvcAreaViewLocationFormatAttribute.cs" />
+    <Compile Include="Annotations\AspMvcControllerAttribute.cs" />
+    <Compile Include="Annotations\AspMvcDisplayTemplateAttribute.cs" />
+    <Compile Include="Annotations\AspMvcEditorTemplateAttribute.cs" />
+    <Compile Include="Annotations\AspMvcMasterAttribute.cs" />
+    <Compile Include="Annotations\AspMvcMasterLocationFormatAttribute.cs" />
+    <Compile Include="Annotations\AspMvcModelTypeAttribute.cs" />
+    <Compile Include="Annotations\AspMvcPartialViewAttribute.cs" />
+    <Compile Include="Annotations\AspMvcPartialViewLocationFormatAttribute.cs" />
+    <Compile Include="Annotations\AspMvcSuppressViewErrorAttribute.cs" />
+    <Compile Include="Annotations\AspMvcTemplateAttribute.cs" />
+    <Compile Include="Annotations\AspMvcViewAttribute.cs" />
+    <Compile Include="Annotations\AspMvcViewComponentAttribute.cs" />
+    <Compile Include="Annotations\AspMvcViewComponentViewAttribute.cs" />
+    <Compile Include="Annotations\AspMvcViewLocationFormatAttribute.cs" />
+    <Compile Include="Annotations\AspRequiredAttributeAttribute.cs" />
+    <Compile Include="Annotations\AspTypePropertyAttribute.cs" />
+    <Compile Include="Annotations\AssertionConditionAttribute.cs" />
+    <Compile Include="Annotations\AssertionConditionType.cs" />
+    <Compile Include="Annotations\AssertionMethodAttribute.cs" />
+    <Compile Include="Annotations\BaseTypeRequiredAttribute.cs" />
+    <Compile Include="Annotations\CanBeNullAttribute.cs" />
+    <Compile Include="Annotations\CannotApplyEqualityOperatorAttribute.cs" />
+    <Compile Include="Annotations\CollectionAccessAttribute.cs" />
+    <Compile Include="Annotations\CollectionAccessType.cs" />
+    <Compile Include="Annotations\ContractAnnotationAttribute.cs" />
+    <Compile Include="Annotations\HtmlAttributeValueAttribute.cs" />
+    <Compile Include="Annotations\HtmlElementAttributesAttribute.cs" />
+    <Compile Include="Annotations\ImplicitUseKindFlags.cs" />
+    <Compile Include="Annotations\ImplicitUseTargetFlags.cs" />
+    <Compile Include="Annotations\InstantHandleAttribute.cs" />
+    <Compile Include="Annotations\InvokerParameterNameAttribute.cs" />
+    <Compile Include="Annotations\ItemCanBeNullAttribute.cs" />
+    <Compile Include="Annotations\ItemNotNullAttribute.cs" />
+    <Compile Include="Annotations\LinqTunnelAttribute.cs" />
+    <Compile Include="Annotations\LocalizationRequiredAttribute.cs" />
+    <Compile Include="Annotations\MacroAttribute.cs" />
+    <Compile Include="Annotations\MeansImplicitUseAttribute.cs" />
+    <Compile Include="Annotations\MustUseReturnValueAttribute.cs" />
+    <Compile Include="Annotations\NoEnumerationAttribute.cs" />
+    <Compile Include="Annotations\NoReorderAttribute.cs" />
+    <Compile Include="Annotations\NotifyPropertyChangedInvocatorAttribute.cs" />
+    <Compile Include="Annotations\NotNullAttribute.cs" />
+    <Compile Include="Annotations\PathReferenceAttribute.cs" />
+    <Compile Include="Annotations\ProvidesContextAttribute.cs" />
+    <Compile Include="Annotations\PublicAPIAttribute.cs" />
+    <Compile Include="Annotations\PureAttribute.cs" />
+    <Compile Include="Annotations\RazorDirectiveAttribute.cs" />
+    <Compile Include="Annotations\RazorHelperCommonAttribute.cs" />
+    <Compile Include="Annotations\RazorImportNamespaceAttribute.cs" />
+    <Compile Include="Annotations\RazorInjectionAttribute.cs" />
+    <Compile Include="Annotations\RazorLayoutAttribute.cs" />
+    <Compile Include="Annotations\RazorPageBaseTypeAttribute.cs" />
+    <Compile Include="Annotations\RazorSectionAttribute.cs" />
+    <Compile Include="Annotations\RazorWriteLiteralMethodAttribute.cs" />
+    <Compile Include="Annotations\RazorWriteMethodAttribute.cs" />
+    <Compile Include="Annotations\RazorWriteMethodParameterAttribute.cs" />
+    <Compile Include="Annotations\RegexPatternAttribute.cs" />
+    <Compile Include="Annotations\SourceTemplateAttribute.cs" />
+    <Compile Include="Annotations\StringFormatMethodAttribute.cs" />
+    <Compile Include="Annotations\TerminatesProgramAttribute.cs" />
+    <Compile Include="Annotations\UsedImplicitlyAttribute.cs" />
+    <Compile Include="Annotations\ValueProviderAttribute.cs" />
+    <Compile Include="Annotations\XamlItemBindingOfItemsControlAttribute.cs" />
+    <Compile Include="Annotations\XamlItemsControlAttribute.cs" />
+    <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="QAAdapter.cs" />
+    <Compile Include="QAAdapterAddOn\Styles.cs" />
+    <Compile Include="QAAdapterAddOn\ViewModels\LoadViewModel.cs" />
+    <Compile Include="QAConnectorOptions.cs" />
+    <Compile Include="Classes\Binance\Klines\Kline.cs" />
+    <Compile Include="Classes\Binance\Klines\KlinesRoot.cs" />
+    <Compile Include="Classes\Binance\Symbols\Filter.cs" />
+    <Compile Include="Classes\Binance\Symbols\RateLimit.cs" />
+    <Compile Include="Classes\Binance\Symbols\SymbolObject.cs" />
+    <Compile Include="Classes\Binance\Symbols\SymbolsRoot.cs" />
+    <Compile Include="Models\MarketData\L1Subscription.cs" />
+    <Compile Include="Models\MarketData\MarketDataEventArgs.cs" />
+    <Compile Include="Models\MarketData\MarketDataType.cs" />
+    <Compile Include="Services\WebSocket\WebSocketManager.cs" />
+    <Compile Include="Services\Instruments\InstrumentManager.cs" />
+    <Compile Include="Services\Configuration\ConfigurationManager.cs" />
+    <Compile Include="Classes\Record.cs" />
+    <Compile Include="Connector.cs" />
+    <Compile Include="Models\DepthEntry.cs" />
+    <Compile Include="Models\MappedInstrument.cs" />
+    <Compile Include="Models\MarketData\ZerodhaTickData.cs" />
+    <Compile Include="Controls\CircularProgressBar.xaml.cs">
+      <DependentUpon>CircularProgressBar.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\LoadingPanel.xaml.cs">
+      <DependentUpon>LoadingPanel.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="DataContext.cs" />
+    <Compile Include="FormatStringConverter.cs" />
+    <Compile Include="L1Subscription.cs" />
+    <Compile Include="L2Subscription.cs" />
+    <Compile Include="Loadwindow.xaml.cs">
+      <DependentUpon>Loadwindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="LogLevel.cs" />
+    <Compile Include="Parsers\DataParser.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="QALogger.cs" />
+    <Compile Include="TickVolumeLogger.cs" />
+    <Compile Include="Services\Zerodha\ZerodhaClient.cs" />
+    <Compile Include="Services\MarketData\HistoricalDataService.cs" />
+    <Compile Include="Services\MarketData\MarketDataService.cs" />
+    <Compile Include="ViewModels\ViewModelBase.cs" />
+    <Compile Include="SyntheticInstruments\StraddleDefinition.cs" />
+    <Compile Include="SyntheticInstruments\StraddleState.cs" />
+    <Compile Include="SyntheticInstruments\Tick.cs" />
+    <Compile Include="SyntheticInstruments\SyntheticStraddleService.cs" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="lib\log4net.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+    <None Include="packages.config" />
+    <None Include="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\QABrokerAPI\QABrokerAPI.csproj">
+      <Name>QABrokerAPI</Name>
+      <Project>{48c4d455-ba8b-4163-b7ca-25a6df39e373}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Analyzer Include="..\References\Newtonsoft.Json.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Connected Services\" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <ItemGroup>
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\lib\log4net.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\Microsoft.CSharp.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\References\Microsoft.Extensions.Caching.Abstractions.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\References\Microsoft.Extensions.Caching.Memory.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\References\Microsoft.Extensions.Logging.Abstractions.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\References\Microsoft.Extensions.Options.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\References\Microsoft.Extensions.Primitives.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\mscorlib.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\References\Newtonsoft.Json.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\NinjaTrader 8\bin64\NinjaTrader.Core.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\NinjaTrader 8\bin64\NinjaTrader.Gui.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\PresentationCore.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\PresentationFramework.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QABrokerAPI\bin\Debug\QABrokerAPI.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\packages\System.Buffers.4.6.1\lib\net462\System.Buffers.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.ComponentModel.DataAnnotations.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.Core.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.Data.DataSetExtensions.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.Data.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\bin\Debug\System.Data.SQLite.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\packages\System.Memory.4.6.3\lib\net462\System.Memory.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.Net.Http.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.Numerics.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\packages\System.Numerics.Vectors.4.6.1\lib\net462\System.Numerics.Vectors.dll" />
+    <ReferencePath Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\packages\System.Runtime.CompilerServices.Unsafe.6.1.2\lib\net462\System.Runtime.CompilerServices.Unsafe.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.Xaml.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.Xml.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.Xml.Linq.dll" />
+    <ReferencePath Include="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\WindowsBase.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\obj\Debug\Controls\CircularProgressBar.g.cs" />
+    <Compile Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\obj\Debug\Controls\LoadingPanel.g.cs" />
+    <Compile Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\obj\Debug\Loadwindow.g.cs" />
+    <Compile Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\obj\Debug\Styles.g.cs" />
+    <Compile Include="C:\Users\Hello\CascadeProjects\zerodha_adapter\QANinjaAdapter\obj\Debug\GeneratedInternalTypeHelper.g.cs" />
+  </ItemGroup>
+</Project>
