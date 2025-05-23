@@ -17,7 +17,6 @@ namespace QANinjaAdapter.Services.WebSocket
         private static WebSocketConnectionHealthMonitor _instance;
         private readonly Timer _connectionHealthCheckTimer;
         private readonly TimeSpan _healthCheckInterval = TimeSpan.FromSeconds(30);
-        private readonly int _maxReconnectAttempts = 3;
         private readonly ZerodhaClient _zerodhaClient;
 
         /// <summary>

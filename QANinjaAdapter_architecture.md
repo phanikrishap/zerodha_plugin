@@ -122,12 +122,37 @@ graph TD
         *   Maps between symbol names and instrument tokens.
         *   Handles subscription mode selection (LTP, quote, full) based on instrument type.
 
-    *   **`Services.MarketData.Processing.DataProcessingService`**:
-        *   Processes binary WebSocket messages and converts to typed data objects.
-        *   Implements binary parsing for Zerodha's market data format.
-        *   Maintains cached tick data for each instrument.
-        *   Routes processed data to appropriate subscription callbacks.
-    *   Transforms parsed `ZerodhaTickData` into NinjaTrader market data updates.
+    *   **`Services.MarketData.Processing` (Refactored Module)**:
+        *   Recently refactored into smaller, more maintainable components following the Single Responsibility Principle:
+        
+        *   **`Services.MarketData.Processing.DataProcessingService`**:
+            *   Acts as a coordinator between specialized components.
+            *   Processes WebSocket messages and routes data to appropriate subscriptions.
+            *   Maintains cached tick data for each instrument token.
+            *   Delegates specific tasks to specialized components.
+        
+        *   **`Services.MarketData.Processing.Parsers.ZerodhaBinaryParser`**:
+            *   Dedicated to parsing binary WebSocket messages from Zerodha.
+            *   Handles all packet types (0, 1, 6, 123) according to official specification.
+            *   Properly converts instrument tokens and price values using big-endian byte order.
+            *   Includes detailed logging for debugging purposes.
+        
+        *   **`Models.MarketData.ParsedTickData`**:
+            *   Clean data model for storing parsed tick data.
+            *   Contains all fields from Zerodha's binary protocol.
+            *   Well-documented with XML comments.
+        
+        *   **`Services.MarketData.Processing.NinjaTraderDataInjector`**:
+            *   Handles injecting data into NinjaTrader.
+            *   Converts ParsedTickData to ZerodhaTickData format.
+            *   Calculates volume deltas between ticks.
+            *   Includes null/empty symbol validation to prevent dictionary key errors.
+        
+        *   **`Services.MarketData.Processing.CsvTickLogger`**:
+            *   Handles logging tick data to CSV files.
+            *   Uses TickVolumeLogger for file operations.
+            *   Logs timestamps, prices, volumes, and deltas.
+            *   Includes null/empty symbol validation to prevent dictionary key errors.
 
 *   **`Services.WebSocket` (Refactored Module)**:
     *   Recently refactored into a modular architecture with clear separation of concerns:

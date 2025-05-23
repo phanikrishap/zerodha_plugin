@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using NinjaTrader.Cbi;
 using NinjaTrader.NinjaScript;
 using QANinjaAdapter.Services.WebSocket;
@@ -22,6 +23,14 @@ namespace QANinjaAdapter.Services.MarketData.Connection
         private Task _messageLoopTask;
         private readonly Dictionary<string, ClientWebSocket> _dedicatedConnections = new Dictionary<string, ClientWebSocket>();
         private readonly Dictionary<string, CancellationTokenSource> _dedicatedCts = new Dictionary<string, CancellationTokenSource>();
+        
+        // Dictionary to track which WebSockets are currently receiving messages
+        private readonly ConcurrentDictionary<ClientWebSocket, bool> _isReceiving = new ConcurrentDictionary<ClientWebSocket, bool>();
+        private readonly object _receiveLock = new object();
+        
+        // Lock objects for send operations to prevent concurrent SendAsync calls
+        private readonly object _sharedSendLock = new object();
+        private readonly ConcurrentDictionary<string, object> _dedicatedSendLocks = new ConcurrentDictionary<string, object>();
 
         // Event for message received
         public event EventHandler<byte[]> MessageReceived;
@@ -133,7 +142,9 @@ namespace QANinjaAdapter.Services.MarketData.Connection
                 }
 
                 // Start a dedicated message processing loop for this connection
-                Task.Run(() => ProcessMessagesAsync(dedicatedClient, dedicatedCts.Token));
+                // Use ConfigureAwait(false) to avoid deadlocks
+                _ = Task.Run(() => ProcessMessagesAsync(dedicatedClient, dedicatedCts.Token))
+                    .ConfigureAwait(false);
 
                 return true;
             }
@@ -189,13 +200,27 @@ namespace QANinjaAdapter.Services.MarketData.Connection
             if (!_isConnectionActive || _sharedWebSocketClient?.State != WebSocketState.Open)
                 return false;
                 
+            // Use a lock to prevent concurrent SendAsync calls on the same WebSocket
+            Task<bool> sendTask = null;
+            lock (_sharedSendLock)
+            {
+                sendTask = SendMessageInternalAsync(_sharedWebSocketClient, data, _connectionCts.Token);
+            }
+            
+            return await sendTask;
+        }
+        
+        private async Task<bool> SendMessageInternalAsync(ClientWebSocket webSocket, byte[] data, CancellationToken token)
+        {
             try
             {
-                await _sharedWebSocketClient.SendAsync(
+                AppLogger.Log("Sending WebSocket message", QANinjaAdapter.Logging.LogLevel.Information);
+                await webSocket.SendAsync(
                     new ArraySegment<byte>(data), 
-                    WebSocketMessageType.Binary,
+                    WebSocketMessageType.Text, // Use Text for JSON messages
                     true,
-                    _connectionCts.Token);
+                    token);
+                AppLogger.Log("WebSocket message sent successfully", QANinjaAdapter.Logging.LogLevel.Information);
                 return true;
             }
             catch (Exception ex)
@@ -224,13 +249,24 @@ namespace QANinjaAdapter.Services.MarketData.Connection
                     return false;
                 }
                 
-                await client.SendAsync(
-                    new ArraySegment<byte>(data),
-                    WebSocketMessageType.Binary,
-                    true,
-                    CancellationToken.None);
+                // Get or create a lock object for this symbol
+                var sendLock = _dedicatedSendLocks.GetOrAdd(symbol, _ => new object());
+                
+                // Use a lock to prevent concurrent SendAsync calls on the same WebSocket
+                Task<bool> sendTask = null;
+                lock (sendLock)
+                {
+                    // Get the cancellation token for this symbol if available
+                    CancellationToken token = CancellationToken.None;
+                    if (_dedicatedCts.TryGetValue(symbol, out var cts))
+                    {
+                        token = cts.Token;
+                    }
                     
-                return true;
+                    sendTask = SendMessageInternalAsync(client, data, token);
+                }
+                
+                return await sendTask;
             }
             catch (Exception ex)
             {
@@ -244,24 +280,61 @@ namespace QANinjaAdapter.Services.MarketData.Connection
             var buffer = new byte[8192];
             var segment = new ArraySegment<byte>(buffer);
 
+            // Register this WebSocket as receiving
+            lock (_receiveLock)
+            {
+                if (!_isReceiving.ContainsKey(webSocket))
+                {
+                    _isReceiving[webSocket] = true;
+                }
+                else
+                {
+                    AppLogger.Log("Skipping duplicate receive loop for WebSocket", QANinjaAdapter.Logging.LogLevel.Warning);
+                    return; // Another thread is already receiving on this WebSocket
+                }
+            }
+
             try
             {
                 while (webSocket.State == WebSocketState.Open && !token.IsCancellationRequested)
                 {
-                    WebSocketReceiveResult result = await webSocket.ReceiveAsync(segment, token);
-
-                    if (result.MessageType == WebSocketMessageType.Close)
+                    try
                     {
-                        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                        WebSocketReceiveResult result = await webSocket.ReceiveAsync(segment, token);
+                        
+                        AppLogger.Log($"WebSocket received message: Type={result.MessageType}, Count={result.Count}, EndOfMessage={result.EndOfMessage}", QANinjaAdapter.Logging.LogLevel.Information);
+
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            AppLogger.Log("WebSocket received Close message", QANinjaAdapter.Logging.LogLevel.Warning);
+                            await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing", CancellationToken.None);
+                            break;
+                        }
+
+                        // Create a copy of the received data to avoid buffer reuse issues
+                        byte[] receivedData = new byte[result.Count];
+                        Array.Copy(buffer, receivedData, result.Count);
+                        
+                        // Log first few bytes of the received data
+                        if (result.Count > 0)
+                        {
+                            string hexData = BitConverter.ToString(receivedData, 0, Math.Min(receivedData.Length, 16)).Replace("-", "");
+                            AppLogger.Log($"WebSocket received data: {hexData}...", QANinjaAdapter.Logging.LogLevel.Information);
+                        }
+
+                        // Trigger the message received event
+                        MessageReceived?.Invoke(this, receivedData);
+                    }
+                    catch (WebSocketException wsEx) when (wsEx.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely)
+                    {
+                        AppLogger.Log($"WebSocket connection closed prematurely: {wsEx.Message}", QANinjaAdapter.Logging.LogLevel.Warning);
                         break;
                     }
-
-                    // Create a copy of the received data to avoid buffer reuse issues
-                    byte[] receivedData = new byte[result.Count];
-                    Array.Copy(buffer, receivedData, result.Count);
-
-                    // Trigger the message received event
-                    MessageReceived?.Invoke(this, receivedData);
+                    catch (InvalidOperationException opEx) when (opEx.Message.Contains("outstanding 'ReceiveAsync' call"))
+                    {
+                        AppLogger.Log($"Concurrent ReceiveAsync detected: {opEx.Message}", QANinjaAdapter.Logging.LogLevel.Warning);
+                        break;
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -279,6 +352,16 @@ namespace QANinjaAdapter.Services.MarketData.Connection
             }
             finally
             {
+                // Unregister this WebSocket from receiving
+                lock (_receiveLock)
+                {
+                    if (_isReceiving.ContainsKey(webSocket))
+                    {
+                        bool removed;
+                        _isReceiving.TryRemove(webSocket, out removed);
+                    }
+                }
+                
                 _isConnectionActive = false;
                 AppLogger.Log("WebSocket message loop ended", QANinjaAdapter.Logging.LogLevel.Information);
             }

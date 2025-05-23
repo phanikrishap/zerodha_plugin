@@ -57,6 +57,7 @@ namespace QANinjaAdapter.Models.MarketData
         public double BuyPrice { get; set; }
         public double SellPrice { get; set; }
         public DateTime Timestamp { get; set; }
+        public bool IsIndex { get; set; }
         
         // Properties for Zerodha WebSocket data
         public string NativeSymbolName { get; set; }

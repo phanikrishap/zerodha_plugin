@@ -134,8 +134,36 @@ namespace QANinjaAdapter.Services.MarketData.Subscription
                 {
                     // Fallback to direct subscription
                     AppLogger.Warning($"BatchSubscriptionManager not available, using direct subscription for {symbol}");
-                    // Direct subscription logic would go here if needed
-                    return false;
+                    
+                    try {
+                        // Format subscription message according to Zerodha WebSocket API
+                        string subscribeMsg = $"{{\"a\":\"subscribe\",\"v\":[{tokenInt}]}}";
+                        byte[] subscribeData = System.Text.Encoding.UTF8.GetBytes(subscribeMsg);
+                        
+                        // Send subscription message
+                        bool subResult = await _connectionManager.SendMessageAsync(subscribeData);
+                        if (!subResult) {
+                            AppLogger.Error($"Failed to send subscription message for {symbol}");
+                            return false;
+                        }
+                        
+                        // Set mode for the instrument
+                        string modeMsg = $"{{\"a\":\"mode\",\"v\":[\"{mode}\",[{tokenInt}]]}}";
+                        byte[] modeData = System.Text.Encoding.UTF8.GetBytes(modeMsg);
+                        
+                        // Send mode message
+                        bool modeResult = await _connectionManager.SendMessageAsync(modeData);
+                        if (!modeResult) {
+                            AppLogger.Error($"Failed to send mode message for {symbol}");
+                            return false;
+                        }
+                        
+                        AppLogger.Info($"Successfully sent direct subscription for {symbol} with token {tokenInt} in {mode} mode");
+                        return true;
+                    } catch (Exception ex) {
+                        AppLogger.Error($"Error in direct subscription for {symbol}: {ex.Message}");
+                        return false;
+                    }
                 }
             }
             catch (Exception ex)
@@ -151,7 +179,7 @@ namespace QANinjaAdapter.Services.MarketData.Subscription
             return "full";
         }
         
-        public async Task<bool> Unsubscribe(string symbol, string exchange)
+        public Task<bool> Unsubscribe(string symbol, string exchange)
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(nameof(SubscriptionManager));
@@ -163,7 +191,7 @@ namespace QANinjaAdapter.Services.MarketData.Subscription
                 if (!_subscriptions.TryRemove(key, out var subscription))
                 {
                     AppLogger.Warning($"No subscription found for {symbol}");
-                    return false;
+                    return Task.FromResult(false);
                 }
                 
                 AppLogger.Info($"Unsubscribing from {symbol} on {exchange}");
@@ -172,12 +200,12 @@ namespace QANinjaAdapter.Services.MarketData.Subscription
                 // This could involve sending an unsubscribe message through the WebSocket connection
                 // For Zerodha, this might mean sending a mode change message or explicit unsubscribe
                 
-                return true;
+                return Task.FromResult(true);
             }
             catch (Exception ex)
             {
                 AppLogger.Error($"Error unsubscribing from {symbol}: {ex.Message}", ex);
-                return false;
+                return Task.FromResult(false);
             }
         }
         

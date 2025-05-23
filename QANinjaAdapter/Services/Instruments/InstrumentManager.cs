@@ -55,9 +55,9 @@ namespace QANinjaAdapter.Services.Instruments
             _ = EnsureInitialized();
         }
         
-        private async Task EnsureInitialized()
+        private Task EnsureInitialized()
         {
-            if (_isInitialized) return;
+            if (_isInitialized) return Task.CompletedTask;
             
             string jsonFilePath = string.Empty;
             try 
@@ -68,7 +68,7 @@ namespace QANinjaAdapter.Services.Instruments
                 if (!File.Exists(jsonFilePath))
                 {
                     Logger.Info($"InstrumentManager: Instrument mapping file not found at: {jsonFilePath}");
-                    return;
+                    return Task.CompletedTask;
                 }
 
                 string jsonContent = File.ReadAllText(jsonFilePath);
@@ -100,8 +100,10 @@ namespace QANinjaAdapter.Services.Instruments
             {
                 string pathForError = string.IsNullOrEmpty(jsonFilePath) ? "[unknown path]" : jsonFilePath;
                 Logger.Error($"InstrumentManager: Error loading instrument mappings from {pathForError}. Error: {ex.Message}", ex);
-                throw;
+                return Task.FromException(ex); // Return a failed task instead of throwing
             }
+            
+            return Task.CompletedTask;
         }
         
         private class InstrumentData
