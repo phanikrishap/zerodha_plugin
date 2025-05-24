@@ -19,8 +19,10 @@ namespace QANinjaAdapter.Services
         private readonly List<int> _pendingInstrumentTokens = new List<int>();
         private readonly object _lock = new object();
         private Timer _batchTimer;
-        private readonly TimeSpan _batchInterval = TimeSpan.FromMilliseconds(500); 
-        private const int MaxBatchSize = 100; 
+        private readonly TimeSpan _batchInterval = TimeSpan.FromMilliseconds(100); // Reduced from 500ms to 100ms
+        private readonly TimeSpan _aggressiveBatchInterval = TimeSpan.FromMilliseconds(50); // For smaller batches
+        private const int MaxBatchSize = 100;
+        private const int AggressiveBatchThreshold = 10; // Process smaller batches more quickly
         private bool _isDisposed = false;
         private CancellationTokenSource _cts;
         private readonly string _webSocketUrl;
@@ -160,19 +162,52 @@ namespace QANinjaAdapter.Services
                         _tokenModes[instrumentToken] = mode;
                     }
                     
-                    AppLogger.Log($"BatchSubscriptionManager: Queued token {instrumentToken} in {mode} mode. Pending: {_pendingInstrumentTokens.Count}", QANinjaAdapter.Logging.LogLevel.Information); 
+                    _lastSubscriptionTime = DateTime.UtcNow;
+                    AppLogger.Log($"BatchSubscriptionManager: Queued token {instrumentToken} in {mode} mode. Pending: {_pendingInstrumentTokens.Count}", QANinjaAdapter.Logging.LogLevel.Information);
                 }
 
+                // Aggressive batching logic
                 if (_pendingInstrumentTokens.Count >= MaxBatchSize)
                 {
-                    _batchTimer?.Change(Timeout.Infinite, Timeout.Infinite); 
-                    _ = ProcessBatchAsync(); 
+                    // Immediate processing when we hit the max batch size
+                    _batchTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+                    AppLogger.Log($"BatchSubscriptionManager: Max batch size ({MaxBatchSize}) reached. Processing immediately.", QANinjaAdapter.Logging.LogLevel.Information);
+                    _ = ProcessBatchAsync();
+                }
+                else if (_pendingInstrumentTokens.Count >= AggressiveBatchThreshold)
+                {
+                    // For medium-sized batches, use shorter interval
+                    _batchTimer?.Dispose();
+                    _batchTimer = new Timer(async _ => await ProcessBatchAsync(), null, _aggressiveBatchInterval, Timeout.InfiniteTimeSpan);
+                    AppLogger.Log($"BatchSubscriptionManager: Medium batch ({_pendingInstrumentTokens.Count} tokens). Using aggressive interval ({_aggressiveBatchInterval.TotalMilliseconds}ms).", QANinjaAdapter.Logging.LogLevel.Information);
                 }
                 else if (_pendingInstrumentTokens.Count > 0)
                 {
+                    // For smaller batches, use standard interval but still faster than before
                     _batchTimer?.Dispose();
                     _batchTimer = new Timer(async _ => await ProcessBatchAsync(), null, _batchInterval, Timeout.InfiniteTimeSpan);
+                    AppLogger.Log($"BatchSubscriptionManager: Small batch ({_pendingInstrumentTokens.Count} tokens). Using standard interval ({_batchInterval.TotalMilliseconds}ms).", QANinjaAdapter.Logging.LogLevel.Information);
                 }
+            }
+        }
+        
+        // Optional: Add a method to force immediate processing of pending subscriptions
+        public async Task FlushPendingSubscriptions()
+        {
+            if (_isDisposed) return;
+            
+            lock (_lock)
+            {
+                if (_pendingInstrumentTokens.Count > 0)
+                {
+                    _batchTimer?.Change(Timeout.Infinite, Timeout.Infinite);
+                    AppLogger.Log($"BatchSubscriptionManager: Force flushing {_pendingInstrumentTokens.Count} pending subscriptions.", QANinjaAdapter.Logging.LogLevel.Information);
+                }
+            }
+            
+            if (_pendingInstrumentTokens.Count > 0)
+            {
+                await ProcessBatchAsync();
             }
         }
 
